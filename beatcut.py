@@ -396,6 +396,15 @@ def cmd_setup(_args) -> None:
     print(f"caption font: {'ok' if FONT.exists() else 'MISSING ' + str(FONT)}")
     install_headless_browser()
     print("headless browser: ok (TikTok sound-page links)")
+    # the CapCut export is optional — report, don't fail
+    cc = shutil.which("capcut") or next((str(p) for p in (Path.home() / ".nvm" / "versions" / "node").glob("*/bin/capcut")), None)
+    print(f"capcut-cli: {cc or 'missing — npm install -g capcut-cli   (only for `export`)'}")
+    if Path("/Applications/CapCut.app").exists():
+        seeds = [p for p in CAPCUT_DRAFTS.glob("*/draft_meta_info.json")] if CAPCUT_DRAFTS.exists() else []
+        print(f"CapCut: installed · projects in its store: {len(seeds)}"
+              + ("" if seeds else " — open CapCut, click Create project once, quit (the export needs that seed)"))
+    else:
+        print("CapCut: not installed (only needed for `export`: brew install --cask capcut)")
     print("ready" if ok else "fix the MISSING items above")
 
 

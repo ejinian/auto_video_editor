@@ -12,14 +12,8 @@ long take + trolley / Apple store / Grove bushes, four videos on four TikTok sou
 cut entirely this way. `CLAUDE.md` is the full command reference and every gotcha we hit;
 `.claude/skills/beatcut/SKILL.md` is the workflow Claude follows plus a lessons log.
 
-**Setup on a new Mac (Christian):**
-
-```bash
-brew install ffmpeg uv
-uv tool install yt-dlp            # only for Instagram / YouTube sounds — never brew install yt-dlp
-git clone https://github.com/ejinian/auto_video_editor.git beatcut && cd beatcut
-uv run beatcut.py setup           # checks ffmpeg, installs the headless browser for TikTok sound pages
-```
+**New machine? Follow [SETUP.md](SETUP.md)** — tools, CapCut, permissions, smoke test,
+troubleshooting. Hand it to your own Claude Code session and say "set this up".
 
 Clips, sounds and renders are not in the repo (gitignored); only the tool, the docs, the
 caption font and the day's `projects/*.json` edit files are.

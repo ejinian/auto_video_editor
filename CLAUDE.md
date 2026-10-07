@@ -1,5 +1,9 @@
 # beatcut — cut phone clips to a TikTok sound, one mp4 out
 
+**Fresh machine? `SETUP.md` is the runbook** (tools, CapCut seed project, macOS permission
+grants, smoke test, troubleshooting). This file is the command reference and the record of
+every gotcha; `.claude/skills/beatcut/SKILL.md` is the daily workflow + lessons log.
+
 A single-file Python CLI (`beatcut.py`, run with `uv run beatcut.py …`; uv installs
 librosa/numpy/soundfile/pillow on first run). ffmpeg 9 from Homebrew does the video
 work. **This Homebrew ffmpeg has NO `drawtext` filter** — all text (captions, sheet
