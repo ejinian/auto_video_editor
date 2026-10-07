@@ -1,0 +1,7 @@
+clips/
+sound/
+out/
+.probe.json
+.thumbs/
+__pycache__/
+.DS_Store

@@ -1,0 +1,14 @@
+{
+ "sound": "sound/original-sound-201440.mp3",
+ "beats": "sound/original-sound-201440.beats.json",
+ "meta": {
+  "source": "https://www.tiktok.com/music/original-sound-7352162941721201440",
+  "post": null,
+  "music_url": "https://v16m.tiktokcdn-us.com/c76fd9272f15397862e4a6aa102fd2dd/6ac4ece1/video/tos/no1a/tos-no1a-v-2370-no/oMnDFBrPCU0sXsEqQISXEfm9PuCjmYC7bD2JQe/?a=1233&bti=ODszNWYuMDE6&&bt=125&ft=GSDrKInz7Th35VnGXq8Zmo&mime_type=audio_mpeg&rc=PDRnaGY3ZGk5OGkzZzo5OEBpamVxeXQ5cmk1cjMzZjU8M0AwXzExNC9fNTIxLjYzMl5hYSNtamIwMmRjLzFgLS1kMWNzcw%3D%3D&vvpl=1&l=20261006064257CEA8CE667926EDFC317D&btag=e000b8000",
+  "title": "original sound",
+  "author": "Space Snicker AE",
+  "music_id": "7352162941721201440",
+  "original": true,
+  "duration": 16
+ }
+}

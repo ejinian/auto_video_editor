@@ -1,0 +1,14 @@
+{
+ "sound": "sound/original-sound-261654.mp3",
+ "beats": "sound/original-sound-261654.beats.json",
+ "meta": {
+  "source": "https://www.tiktok.com/music/original-sound-7617898048916261654",
+  "post": null,
+  "music_url": "https://v19.tiktokcdn-us.com/a0beeb4f3db81ce17372cb44216a322c/6ac4ece2/video/tos/no1a/tos-no1a-v-2370-no/oEQ7wsITeoMGhdGDLqALwcfYgea7TjIDjJvawE/?a=1233&bti=ODszNWYuMDE6&&bt=125&ft=GSDrKInz7Th65VnGXq8Zmo&mime_type=audio_mpeg&rc=ZTxpaDU6ZzlmOGZmN2c6PEBpanZ1OXA5cnY2OTMzbzU8NUBgXl5gLjAxNi4xLi8yMGE0YSMyLjRoMmRjX3BhLS1kMTFzcw%3D%3D&vvpl=1&l=202610060643053EC89743F407D6F4B0F8&btag=e000f0000",
+  "title": "original sound",
+  "author": "Shahbazov",
+  "music_id": "7617898048916261654",
+  "original": true,
+  "duration": 9
+ }
+}

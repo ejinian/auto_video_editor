@@ -1,0 +1,102 @@
+{
+ "sound": "sound/call-it-what-you-like-slowed-635841.mp3",
+ "beats": "sound/call-it-what-you-like-slowed-635841.beats.json",
+ "audio_start": 0.0,
+ "length": 15.0,
+ "density": {
+  "calm": 4,
+  "hype": 2,
+  "burst": 4,
+  "hold": 4
+ },
+ "excluded": [],
+ "hero": null,
+ "caption": null,
+ "cuts": [
+  0.2322,
+  2.2291,
+  3.7616,
+  4.2493,
+  4.7601,
+  5.2941,
+  5.8746,
+  7.9877,
+  9.9846,
+  11.9815,
+  14.0016,
+  14.9769,
+  15.9753
+ ],
+ "_drops": [
+  {
+   "bar": 2,
+   "beat": 11,
+   "time": 5.874648526077097,
+   "ratio": 1.95
+  }
+ ],
+ "slots": [
+  {
+   "clip": 4,
+   "in": 2.977
+  },
+  {
+   "clip": 6,
+   "in": 2.775
+  },
+  {
+   "clip": 7,
+   "in": 0.3
+  },
+  {
+   "clip": 10,
+   "in": 1.603
+  },
+  {
+   "clip": 9,
+   "in": 2.176
+  },
+  {
+   "clip": 5,
+   "in": 2.485
+  },
+  {
+   "clip": 7,
+   "in": 7.642
+  },
+  {
+   "clip": 2,
+   "in": 4.527
+  },
+  {
+   "clip": 3,
+   "in": 3.742
+  },
+  {
+   "clip": 1,
+   "in": 7.397
+  },
+  {
+   "clip": 11,
+   "in": 2.854
+  },
+  {
+   "clip": 8,
+   "in": 2.959
+  }
+ ],
+ "name": "day1_1",
+ "clips": [
+  "clips/day1/IMG_2739.MOV",
+  "clips/day1/IMG_2740.MOV",
+  "clips/day1/IMG_2742.MOV",
+  "clips/day1/IMG_2743.MOV",
+  "clips/day1/IMG_2744.MOV",
+  "clips/day1/IMG_2745.MOV",
+  "clips/day1/IMG_2746.MOV",
+  "clips/day1/IMG_2748.MOV",
+  "clips/day1/IMG_2749.MOV",
+  "clips/day1/IMG_2751.MOV",
+  "clips/day1/IMG_2752.MOV"
+ ]
+}

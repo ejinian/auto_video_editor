@@ -1,0 +1,66 @@
+{
+ "name": "day2_1",
+ "clips": [
+  "clips/day2/before_barber.MOV",
+  "clips/day2/barber_long.MOV"
+ ],
+ "sound": "sound/original-sound-201440.mp3",
+ "beats": "sound/original-sound-201440.beats.json",
+ "audio_start": 0.0,
+ "length": 30.0,
+ "density": {
+  "calm": 8,
+  "hype": 4,
+  "burst": 0,
+  "hold": 8
+ },
+ "excluded": [],
+ "hero": null,
+ "first": 1,
+ "story": [
+  2
+ ],
+ "seed": null,
+ "caption": null,
+ "cuts": [
+  0.1393,
+  1.2307,
+  2.8328,
+  7.1285,
+  9.2648,
+  11.401,
+  15.6967,
+  16.927
+ ],
+ "_drops": [],
+ "slots": [
+  {
+   "clip": 1,
+   "in": 0.3
+  },
+  {
+   "clip": 2,
+   "in": 8.268
+  },
+  {
+   "clip": 2,
+   "in": 25.807
+  },
+  {
+   "clip": 2,
+   "in": 46.039
+  },
+  {
+   "clip": 2,
+   "in": 64.112
+  },
+  {
+   "clip": 2,
+   "in": 82.184
+  },
+  {
+   "clip": 2,
+   "in": 102.416
+  }
+ ]
+}

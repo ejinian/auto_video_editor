@@ -1,0 +1,73 @@
+{
+ "name": "day2_4",
+ "clips": [
+  "clips/day2/trolley2.mov",
+  "clips/day2/trolley1.mov",
+  "clips/day2/trolley_think1.mov",
+  "clips/day2/trolley_think2.mov",
+  "clips/day2/apple_store_sit.MOV",
+  "clips/day2/bush.mov"
+ ],
+ "sound": "sound/original-sound-359950.mp3",
+ "beats": "sound/original-sound-359950.beats.json",
+ "audio_start": 0.0,
+ "length": 30.0,
+ "density": {
+  "calm": 4,
+  "hype": 2,
+  "burst": 4,
+  "hold": 4
+ },
+ "excluded": [],
+ "hero": null,
+ "first": 6,
+ "story": [
+  1,
+  4,
+  2,
+  5
+ ],
+ "seed": null,
+ "caption": null,
+ "cuts": [
+  0.1161,
+  1.1842,
+  2.2291,
+  3.1811,
+  5.2245,
+  6.2694,
+  7.3375,
+  9.456
+ ],
+ "_drops": [],
+ "slots": [
+  {
+   "clip": 6,
+   "in": 0.3
+  },
+  {
+   "clip": 1,
+   "in": 2.619
+  },
+  {
+   "clip": 1,
+   "in": 8.301
+  },
+  {
+   "clip": 2,
+   "in": 0.317
+  },
+  {
+   "clip": 4,
+   "in": 0.043
+  },
+  {
+   "clip": 5,
+   "in": 1.888
+  },
+  {
+   "clip": 5,
+   "in": 6.131
+  }
+ ]
+}

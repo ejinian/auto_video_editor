@@ -1,0 +1,66 @@
+{
+ "name": "day2_2",
+ "clips": [
+  "clips/day2/before_barber.MOV",
+  "clips/day2/barber_long.MOV"
+ ],
+ "sound": "sound/the-worst-808s-known-to-man-857302.mp3",
+ "beats": "sound/the-worst-808s-known-to-man-857302.beats.json",
+ "audio_start": 0.0,
+ "length": 30.0,
+ "density": {
+  "calm": 8,
+  "hype": 4,
+  "burst": 0,
+  "hold": 8
+ },
+ "excluded": [],
+ "hero": null,
+ "first": 1,
+ "story": [
+  2
+ ],
+ "seed": 11,
+ "caption": null,
+ "cuts": [
+  0.0929,
+  1.0217,
+  3.7616,
+  5.6192,
+  9.3809,
+  11.2617,
+  15.0001,
+  18.155
+ ],
+ "_drops": [],
+ "slots": [
+  {
+   "clip": 1,
+   "in": 0.3
+  },
+  {
+   "clip": 2,
+   "in": 7.401
+  },
+  {
+   "clip": 2,
+   "in": 27.524
+  },
+  {
+   "clip": 2,
+   "in": 44.0
+  },
+  {
+   "clip": 2,
+   "in": 63.059
+  },
+  {
+   "clip": 2,
+   "in": 81.299
+  },
+  {
+   "clip": 2,
+   "in": 101.983
+  }
+ ]
+}
