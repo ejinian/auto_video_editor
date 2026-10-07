@@ -62,8 +62,11 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
 7. Deliver each finished mp4 with SendUserFile as it's done, not all at the end. One line
    each: what's in it, length, where the drop lands.
 7b. When Ernest wants to polish by hand: `-p <name> export --open` writes the same edit as
-   a CapCut project (via capcut-cli; details + the one-time "create an empty project in
-   CapCut first" rule in CLAUDE.md) and opens CapCut with it at the top of the list.
+   a CapCut project (via capcut-cli; details in CLAUDE.md) and opens CapCut INSIDE it by
+   real-mouse-clicking the first tile. Run it from Bash with the sandbox disabled, or
+   let Ernest run it himself. Verify with a window capture: `winshot.py CapCut out.png`
+   (pyobjc `CGWindowListCopyWindowInfo` for CapCut's window id → `screencapture -l`),
+   which works even when the Claude app covers CapCut. The seed project `1007` must stay.
    Tell him the draft name; the mp4 render stays the deliverable if he doesn't touch it.
 8. On re-prompt ("swap clips 3 and 8", "get rid of clip 7", "hold that longer"), run the
    matching edit command on the right `-p` project, then `render`. Table in CLAUDE.md.
@@ -113,3 +116,13 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   the one-time "create an empty project in CapCut" seed is still pending Ernest.
   Computer use is not available in this app session, so "does it open in CapCut" can
   only be confirmed by Ernest or by CapCut writing `Timelines/` into the draft folder.
+- **2026-10-07, later.** `export --open` now lands inside the project. What it took:
+  CapCut 9.5 refused the generic-template draft ("unusual path") until an app-made seed
+  project existed (`1007`, created by clicking Create project for him); CapCut's home
+  canvas ignores AX `click at` but takes a Quartz mouse event; the editor's AX window
+  title is always "CapCut", so the open signal is CapCut writing its own files into the
+  draft folder; Screen Recording lets `screencapture -l <windowid>` see CapCut even
+  under the Claude window (`tools/winshot.py`). Ernest granted Accessibility + Screen
+  Recording to the lowercase `claude` runtime. Verified: editor open on day2_5, 15 clips
+  + the mp3 on the timeline, 18:02, 9:16, 30 fps. His rule for this kind of thing:
+  iterate, but not endlessly — "if it's stubborn it's no big deal".

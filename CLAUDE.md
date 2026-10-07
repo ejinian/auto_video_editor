@@ -83,10 +83,31 @@ while CapCut is running — `export` on an open project needs CapCut quit first
 (`osascript -e 'quit app "CapCut"'`), then `--open` brings it back.
 
 ⚠️ **One-time per machine:** CapCut 9.x refuses drafts built from capcut-cli's bundled
-6.5-era template ("from an unusual path"), so `--template auto` seeds new drafts from the
-NEWEST APP-AUTHORED project in the store. Before the first export, open CapCut, create
-one empty project (any name), and close it. If the store is empty the export stops with
-that message. Installed here: CapCut 9.5.0 (Homebrew cask), capcut-cli 0.28.0. The
+6.5-era template — seen live 2026-10-07: "Couldn't use project — Current project is from
+an unusual path" — so `--template auto` seeds new drafts from the NEWEST APP-AUTHORED
+project in the store. Before the first export, open CapCut, create one empty project
+(any name), and close it. On this Mac that seed is the empty project **`1007`** in the
+store — never delete it (if it goes, create another). If the store is empty the export
+stops with that message.
+
+**`--open` lands INSIDE the project (2026-10-07).** CapCut has no deep link for a draft
+(its `capcut://` scheme only targets features; four draft-shaped URLs were ignored), so
+`open_in_capcut()` launches the app, waits for the home window, closes any front dialog
+via its AX close button, then sends a REAL mouse click (Quartz `CGEvent`, pyobjc) at the
+first project tile — `CAPCUT_FIRST_TILE = (306, 782)` points from the window's top-left,
+valid for any normal window size because the sidebar and the sections above the grid are
+fixed-size; the newest project is always the first tile. Success = CapCut starts writing
+its own files into the draft folder (`Timelines/`, `draft_settings`, `Resources`…) —
+the window's AX title stays "CapCut" in both views, so it is no signal. Accessibility
+`click at` is IGNORED by CapCut's home canvas; only the Quartz click works. Requirements,
+granted by Ernest for the Claude Code runtime (`~/Library/Application Support/Claude/
+claude-code/<ver>/<hash>/claude.app`, listed as lowercase `claude`): **Accessibility**
+(window geometry + clicks) and **Screen Recording** (only for capturing the window to
+debug; `screencapture -l <CGWindowID>` captures CapCut even when the Claude window covers
+it — see the winshot recipe in the skill). Without the grants, `--open` just launches
+CapCut and prints "click the first tile". The user's shell runs `uv run beatcut.py` as
+their own process, so no sandbox flag is needed there; from Claude's Bash tool the call
+needs the sandbox disabled. Installed here: CapCut 9.5.0 (Homebrew cask), capcut-cli 0.28.0. The
 version matrix calls 9.x "expected-compatible, unverified" and 10.x write-guarded — if a
 CapCut update lands, run `capcut doctor` / `capcut version <draft>` before trusting an
 export, and keep the 9.5.0 installer. Verified on a scratch store 2026-10-07: segments,

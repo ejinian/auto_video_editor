@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --quiet
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["librosa>=0.11", "numpy", "soundfile", "pillow", "playwright>=1.40"]
+# dependencies = ["librosa>=0.11", "numpy", "soundfile", "pillow", "playwright>=1.40", "pyobjc-framework-Quartz; sys_platform == 'darwin'"]
 # ///
 """beatcut — cut phone clips to the beats of a TikTok sound and export ONE mp4.
 
@@ -1292,13 +1292,83 @@ def capcut_running() -> bool:
 
 def quit_capcut(timeout: float = 20.0) -> None:
     import time
-    subprocess.run(["osascript", "-e", 'tell application "CapCut" to quit'], capture_output=True)
+    try:  # the quit can hang behind a dialog; don't let it hang the export
+        subprocess.run(["osascript", "-e", 'tell application "CapCut" to quit'], capture_output=True, timeout=15)
+    except subprocess.TimeoutExpired:
+        pass
     t0 = time.time()
     while capcut_running() and time.time() - t0 < timeout:
         time.sleep(0.5)
     if capcut_running():  # a fresh draft has nothing unsaved; the app just ignores AppleScript
         subprocess.run(["pkill", "-x", "CapCut"], capture_output=True)
         time.sleep(2)
+
+
+def osa(script: str) -> str:
+    p = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    return (p.stdout or p.stderr).strip()
+
+
+def mouse_click(x: float, y: float) -> None:
+    """A REAL mouse click via Quartz (move, down, up). CapCut's home screen is a
+    canvas that ignores accessibility `click at`, but takes this."""
+    import time
+    from Quartz import (CGEventCreateMouseEvent, CGEventPost, kCGEventLeftMouseDown,
+                        kCGEventLeftMouseUp, kCGEventMouseMoved, kCGHIDEventTap, kCGMouseButtonLeft)
+    pt = (x, y)
+    CGEventPost(kCGHIDEventTap, CGEventCreateMouseEvent(None, kCGEventMouseMoved, pt, kCGMouseButtonLeft))
+    time.sleep(0.15)
+    CGEventPost(kCGHIDEventTap, CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, pt, kCGMouseButtonLeft))
+    time.sleep(0.05)
+    CGEventPost(kCGHIDEventTap, CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, pt, kCGMouseButtonLeft))
+
+
+# Where the FIRST project tile sits on CapCut 9.5's home screen, relative to the
+# window's top-left, in points. The sidebar is fixed-width and the sections above
+# the Projects grid have fixed heights, so this holds for any normal window size;
+# the newest project (ours, just written) is always the first tile.
+CAPCUT_FIRST_TILE = (306, 782)
+
+
+def open_in_capcut(name: str, draft_dir: Path) -> bool:
+    """Launch CapCut and click the newest project tile; True when CapCut starts
+    writing into the draft folder (Timelines/, draft_settings…), which it does the
+    moment it opens a project — the window title stays "CapCut" in both views.
+    Needs Accessibility for the Claude Code runtime (see CLAUDE.md); without it
+    this just launches CapCut."""
+    import time
+    before = set(p.name for p in draft_dir.iterdir())
+    subprocess.run(["open", "-a", "CapCut"], check=False)
+    win = 'tell application "System Events" to tell process "CapCut" to get {position, size} of (first window whose subrole is "AXStandardWindow")'
+    geo = ""
+    for _ in range(40):  # wait for the home window
+        time.sleep(0.5)
+        geo = osa(win)
+        if geo and "error" not in geo:
+            break
+    if not geo or "error" in geo:
+        print("  (couldn't reach CapCut's window — Accessibility not granted? The project is at the top of its list.)")
+        return False
+    time.sleep(3)  # let the home screen settle
+    # a first-launch / update dialog in front? its close button honours AX clicks
+    osa('tell application "System Events" to tell process "CapCut" to click (first button of (first window whose subrole is "AXDialog") whose description is "close button")')
+    osa('tell application "System Events" to tell process "CapCut" to set frontmost to true')
+    time.sleep(0.5)
+    geo = osa(win)
+    try:
+        x, y, w, h = [int(v) for v in geo.replace(" ", "").split(",")]
+    except ValueError:
+        return False
+    try:
+        mouse_click(x + CAPCUT_FIRST_TILE[0], y + CAPCUT_FIRST_TILE[1])
+    except Exception as e:  # noqa: BLE001 — pyobjc missing or event tap refused
+        print(f"  (couldn't click: {e})")
+        return False
+    for _ in range(30):
+        time.sleep(0.5)
+        if set(p.name for p in draft_dir.iterdir()) - before:
+            return True
+    return False
 
 
 def capcut_spec(project: dict, clips: list[dict]) -> tuple[dict, float]:
@@ -1378,10 +1448,12 @@ def cmd_export(args) -> None:
     for n in notes:
         print(f"  note — {n}")
     if args.open:
-        subprocess.run(["open", "-a", "CapCut"], check=False)
-        print("  CapCut is opening — the project is at the top of its list")
+        if open_in_capcut(name, dest):
+            print(f"  CapCut is open on '{name}' — edit away")
+        else:
+            print(f"  CapCut is open — '{name}' is the first tile under Projects; click it")
     else:
-        print("  open it: open -a CapCut   (the project is at the top of the list)")
+        print("  open it: uv run beatcut.py -p <name> export --open   (or open -a CapCut and click the first tile)")
 
 
 # -------------------------------------------------------------------- main
