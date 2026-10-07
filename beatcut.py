@@ -1225,6 +1225,99 @@ def cmd_render(args) -> None:
     print(f"rendered {rel(out_path)} · {total:.2f}s · {n} cuts · {w}x{h} · {size:.1f} MB (copy: versions/{name}.v{nxt}.mp4)")
 
 
+# ------------------------------------------------------------------ export
+
+CAPCUT_DRAFTS = Path.home() / "Movies" / "CapCut" / "User Data" / "Projects" / "com.lveditor.draft"
+
+
+def capcut_bin() -> list[str]:
+    """capcut-cli (npm) — the community tool that writes CapCut's on-disk drafts and
+    tracks the format drift between CapCut versions. Installed with
+    `npm install -g capcut-cli`; nvm keeps it out of a bare PATH, so look there too."""
+    found = shutil.which("capcut")
+    if found:
+        return [found]
+    for p in sorted((Path.home() / ".nvm" / "versions" / "node").glob("*/bin/capcut")):
+        return [str(p)]
+    if shutil.which("npx"):
+        return ["npx", "-y", "capcut-cli"]
+    die("capcut-cli isn't installed — run: npm install -g capcut-cli")
+
+
+def capcut_spec(project: dict, clips: list[dict]) -> tuple[dict, float]:
+    """The edit as a capcut-cli compile spec: one video track with every slot as a
+    segment (same frame-exact timing as `render`), one audio track with the sound."""
+    byid = {c["id"]: c for c in clips}
+    cuts, start = project["cuts"], project["cuts"][0]
+    frames = [round((cuts[i + 1] - start) * FPS) - round((cuts[i] - start) * FPS) for i in range(len(cuts) - 1)]
+    items, t = [], 0.0
+    for slot, nf in zip(project["slots"], frames):
+        d = nf / FPS
+        items.append({
+            "path": str(Path(byid[slot["clip"]]["path"]).resolve()),
+            "start": round(t, 6),
+            "duration": round(d, 6),
+            "sourceStart": slot["in"],
+            "type": "video",
+        })
+        t += d
+    total = round(t, 6)
+    spec = {
+        "name": out_name(project),
+        "width": W, "height": H, "fps": FPS, "ratio": "9:16",
+        "tracks": [
+            {"type": "video", "name": "beatcut", "items": items},
+            {"type": "audio", "name": "sound", "items": [{
+                "path": str((ROOT / project["sound"]).resolve()),
+                "start": 0, "duration": total, "sourceStart": round(start, 6), "volume": 1,
+            }]},
+        ],
+    }
+    return spec, total
+
+
+def cmd_export(args) -> None:
+    project, clips = load_project(), scan_clips()
+    spec, total = capcut_spec(project, clips)
+    name = out_name(project)
+    spec_path = out_dir(project) / f"{name}.capcut.json"
+    save_json(spec_path, spec)
+    drafts = Path(args.drafts).expanduser() if args.drafts else CAPCUT_DRAFTS
+    if not drafts.exists():
+        die(f"CapCut's draft folder isn't there yet ({drafts}). Open CapCut once and create any "
+            "empty project — that also gives capcut-cli a real project to seed ours from.")
+    dest = drafts / name
+    if dest.exists():
+        if (dest / ".beatcut.json").exists():
+            shutil.rmtree(dest)  # ours from an earlier export: replace it
+        else:
+            die(f"{dest} exists and wasn't made by beatcut — rename it in CapCut or pass --name")
+    cc = capcut_bin()
+    p = run(cc + ["compile", str(spec_path), "--out", str(dest), "--template", "auto"], check=False)
+    if p.returncode:
+        die(f"capcut compile failed:\n{(p.stderr or p.stdout)[-1500:]}")
+    # the CapCut 9.x-on-macOS recipe: mirror the timeline into the nested documents the
+    # app actually reads, register the media so it isn't 'file inaccessible', then lint
+    steps = [["sync-timelines", str(dest), "--nested", "--apply"],
+             ["register", str(dest), "--materials", "--apply"],
+             ["lint", str(dest), "--fix", "--no-check-paths"]]
+    notes = []
+    for s in steps:
+        q = run(cc + s, check=False)
+        if q.returncode:
+            notes.append(f"{s[0]}: {(q.stderr or q.stdout).strip()[-300:]}")
+    save_json(dest / ".beatcut.json", {"project": CUR, "spec": str(spec_path.relative_to(ROOT)), "total": total})
+    print(f"CapCut project '{name}' written: {dest}")
+    print(f"  {len(spec['tracks'][0]['items'])} clips on the video track, the sound on an audio track, {total:.2f}s, 1080x1920 @ {FPS}")
+    for n in notes:
+        print(f"  note — {n}")
+    if args.open:
+        subprocess.run(["open", "-a", "CapCut"], check=False)
+        print("  CapCut is opening — the project is at the top of its list")
+    else:
+        print("  open it: open -a CapCut   (the project is at the top of the list)")
+
+
 # -------------------------------------------------------------------- main
 
 def main() -> None:
@@ -1265,6 +1358,11 @@ def main() -> None:
 
     sub.add_parser("show", help="print the edit").set_defaults(fn=cmd_show)
     sub.add_parser("board", help="storyboard, one frame per slot -> out/_board.jpg").set_defaults(fn=cmd_board)
+
+    s = sub.add_parser("export", help="write the edit as a CapCut project (every cut editable) into CapCut's drafts folder")
+    s.add_argument("--open", action="store_true", help="launch CapCut afterwards")
+    s.add_argument("--drafts", metavar="DIR", help="CapCut draft folder (default: CapCut's own on macOS)")
+    s.set_defaults(fn=cmd_export)
 
     s = sub.add_parser("render", help="write out/<project>.mp4")
     s.add_argument("--draft", action="store_true", help="540x960 quick check")

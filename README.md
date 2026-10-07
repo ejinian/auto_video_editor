@@ -40,6 +40,14 @@ Always put the link in quotes (zsh chokes on `?` and `=` otherwise). An Instagra
 you the reel's audio as it plays, only as long as the reel; add `--cookies chrome` if IG
 asks for a login.
 
+Want to finish it by hand? Export the same edit as a CapCut project, every cut still
+editable, and open CapCut (one-time: create any empty project in CapCut first so the
+export can copy its settings; needs `npm install -g capcut-cli`):
+
+```bash
+uv run beatcut.py -p day2_1 export --open                  # -> CapCut drafts, top of the list
+```
+
 Edit, then render again:
 
 ```bash

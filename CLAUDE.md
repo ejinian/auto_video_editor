@@ -53,6 +53,36 @@ shorter than `--length` plays to its END (meme sounds keep the punchline in the 
 `frames <clip…>` writes a timestamped frame sheet per clip (`out/_frames_<clip>.jpg`) — the
 way to SEE a long take before deciding the story.
 
+## CapCut export — the edit as an editable project (2026-10-07)
+
+`-p dayN_V export [--open]` writes the SAME edit `render` would bake (identical frame math)
+as a CapCut desktop project in CapCut's draft store
+(`~/Movies/CapCut/User Data/Projects/com.lveditor.draft/<dayN_V>/`): one video track with
+every slot as a segment (clip + `sourceStart` in-point, so each cut can be dragged longer
+or shorter in CapCut), the sound on an audio track offset to `audio_start`, 1080x1920 @30.
+Media is COPIED into the draft's `assets/` (self-contained; ~200 MB–1 GB per project with
+4K sources — delete old drafts in CapCut when done). Then `open -a CapCut`: the project
+is at the top of CapCut's list; there is no URL scheme to open a specific draft on macOS.
+
+**Mechanism:** CapCut has no API; its drafts are plain JSON on disk. We do NOT hand-write
+the format (it drifts per version): the export writes a **capcut-cli compile spec**
+(`out/dayN/dayN_V.capcut.json`) and shells out to `capcut compile … --template auto`, then
+the CapCut-9.x-on-macOS recipe from capcut-cli's version matrix: `sync-timelines --nested
+--apply` (the app reads `Timelines/<id>/draft_info.json`, not only the root file),
+`register --materials --apply` (else every clip shows "file inaccessible" on 9.1+), and
+`lint --fix`. capcut-cli (`npm install -g capcut-cli`, found under nvm) is the only
+dependency; `capcut doctor` checks the environment.
+
+⚠️ **One-time per machine:** CapCut 9.x refuses drafts built from capcut-cli's bundled
+6.5-era template ("from an unusual path"), so `--template auto` seeds new drafts from the
+NEWEST APP-AUTHORED project in the store. Before the first export, open CapCut, create
+one empty project (any name), and close it. If the store is empty the export stops with
+that message. Installed here: CapCut 9.5.0 (Homebrew cask), capcut-cli 0.28.0. The
+version matrix calls 9.x "expected-compatible, unverified" and 10.x write-guarded — if a
+CapCut update lands, run `capcut doctor` / `capcut version <draft>` before trusting an
+export, and keep the 9.5.0 installer. Verified on a scratch store 2026-10-07: segments,
+in-points and the audio offset round-trip; a real open in CapCut 9.5.0 is the pending check.
+
 ## The pipeline (= the "function")
 
 ```
