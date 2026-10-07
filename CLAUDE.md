@@ -65,7 +65,10 @@ as a CapCut desktop project in CapCut's draft store
 every slot as a segment (clip + `sourceStart` in-point, so each cut can be dragged longer
 or shorter in CapCut), the sound on an audio track offset to `audio_start`, 1080x1920 @30.
 Media is COPIED into the draft's `assets/` (self-contained; ~200 MB–1 GB per project with
-4K sources — delete old drafts in CapCut when done). Then `open -a CapCut`: the project
+4K sources). **A re-run of `export` DELETES the same-named project first, CapCut edits
+included** — Ernest's rule: the template always starts from the automation, he only
+touches it afterwards, and re-running is exactly the moment he wants the old one gone.
+Only `dayN_V` names are ever removed; CapCut's seed project is never touched. Then `open -a CapCut`: the project
 is at the top of CapCut's list; there is no URL scheme to open a specific draft on macOS.
 
 **Mechanism:** CapCut has no API; its drafts are plain JSON on disk. We do NOT hand-write

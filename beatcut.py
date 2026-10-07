@@ -1417,8 +1417,9 @@ def cmd_export(args) -> None:
         die(f"CapCut's draft folder isn't there yet ({drafts}). Open CapCut once and create any "
             "empty project — that also gives capcut-cli a real project to seed ours from.")
     dest = drafts / name
-    if dest.exists() and not (dest / ".beatcut.json").exists():
-        die(f"{dest} exists and wasn't made by beatcut — rename it in CapCut or pass --name")
+    # Ernest's rule (2026-10-07): a re-run ALWAYS starts the template over — the old
+    # project of the same name is deleted, CapCut edits included. Only our own dayN_V
+    # names are ever touched, never CapCut's seed project.
     cc = capcut_bin()
     # capcut-cli refuses to write a managed draft while the editor is open (the app may
     # overwrite it), so quit CapCut first — and only THEN replace an earlier export
@@ -1428,7 +1429,8 @@ def cmd_export(args) -> None:
         if capcut_running():
             die("CapCut wouldn't quit (an unsaved project dialog?). Close it and re-run export.")
     if dest.exists():
-        shutil.rmtree(dest)  # ours from an earlier export: replace it
+        shutil.rmtree(dest)
+        print(f"  replaced the earlier '{name}' project (a re-run starts the template over)")
     p = run(cc + ["compile", str(spec_path), "--out", str(dest), "--template", "auto"], check=False)
     if p.returncode:
         die(f"capcut compile failed:\n{(p.stderr or p.stdout)[-1500:]}")

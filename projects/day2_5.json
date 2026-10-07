@@ -5,10 +5,10 @@
   "clips/day2/barber_start.mov",
   "clips/day2/barber_end.mov"
  ],
- "sound": "sound/the-worst-808s-known-to-man-857302.mp3",
- "beats": "sound/the-worst-808s-known-to-man-857302.beats.json",
+ "sound": "sound/original-sound-261654.mp3",
+ "beats": "sound/original-sound-261654.beats.json",
  "audio_start": 0.0,
- "length": 30.0,
+ "length": 12.0,
  "density": {
   "calm": 4,
   "hype": 2,
@@ -18,27 +18,24 @@
  "excluded": [],
  "hero": null,
  "first": 1,
- "story": [],
- "random": true,
- "seed": 5,
+ "story": [
+  2,
+  3
+ ],
+ "random": false,
+ "seed": null,
  "caption": null,
  "cuts": [
   0.0929,
-  1.0217,
-  1.8808,
-  3.7616,
-  4.6904,
-  5.6192,
-  6.5712,
-  8.4521,
-  9.3809,
-  10.3097,
-  11.2617,
-  12.1905,
-  14.0713,
-  15.0001,
-  15.8592,
-  18.155
+  0.9056,
+  1.6951,
+  3.2972,
+  4.1099,
+  4.8994,
+  5.7121,
+  6.5016,
+  8.1038,
+  9.9
  ],
  "_drops": [],
  "slots": [
@@ -47,60 +44,36 @@
    "in": 0.3
   },
   {
-   "clip": 3,
-   "in": 16.568
+   "clip": 2,
+   "in": 2.499
   },
   {
    "clip": 2,
-   "in": 18.475
-  },
-  {
-   "clip": 3,
-   "in": 14.77
+   "in": 7.687
   },
   {
    "clip": 2,
-   "in": 2.252
-  },
-  {
-   "clip": 3,
-   "in": 7.651
+   "in": 13.687
   },
   {
    "clip": 2,
-   "in": 6.088
+   "in": 18.898
   },
   {
    "clip": 3,
-   "in": 19.924
+   "in": 2.34
   },
   {
    "clip": 2,
-   "in": 9.298
+   "in": 10.549
   },
   {
    "clip": 3,
-   "in": 0.311
-  },
-  {
-   "clip": 2,
-   "in": 3.607
+   "in": 12.1
   },
   {
    "clip": 3,
-   "in": 9.843
-  },
-  {
-   "clip": 2,
-   "in": 15.188
-  },
-  {
-   "clip": 3,
-   "in": 18.558
-  },
-  {
-   "clip": 2,
-   "in": 11.023
+   "in": 17.781
   }
  ]
 }
