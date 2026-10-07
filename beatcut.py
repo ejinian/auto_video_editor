@@ -1359,15 +1359,20 @@ def open_in_capcut(name: str, draft_dir: Path) -> bool:
         x, y, w, h = [int(v) for v in geo.replace(" ", "").split(",")]
     except ValueError:
         return False
-    try:
-        mouse_click(x + CAPCUT_FIRST_TILE[0], y + CAPCUT_FIRST_TILE[1])
-    except Exception as e:  # noqa: BLE001 — pyobjc missing or event tap refused
-        print(f"  (couldn't click: {e})")
-        return False
-    for _ in range(30):
-        time.sleep(0.5)
-        if set(p.name for p in draft_dir.iterdir()) - before:
-            return True
+    # the home screen can still be loading (sign-in sync, project list) when the
+    # window first appears, and a click then is swallowed — so click, wait for
+    # CapCut to start writing into the draft, and try again a couple of times
+    for attempt in range(4):
+        try:
+            mouse_click(x + CAPCUT_FIRST_TILE[0], y + CAPCUT_FIRST_TILE[1])
+        except Exception as e:  # noqa: BLE001 — pyobjc missing or event tap refused
+            print(f"  (couldn't click: {e})")
+            return False
+        for _ in range(12):
+            time.sleep(0.5)
+            if set(p.name for p in draft_dir.iterdir()) - before:
+                return True
+        time.sleep(3)
     return False
 
 
