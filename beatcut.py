@@ -796,6 +796,44 @@ def assign_story(project: dict, clips: list[dict], story: list[int], slots: list
             t += d + g
 
 
+def assign_random(project: dict, clips: list[dict], slots: list[int], seed: int | None) -> None:
+    """Every slot takes a random clip (weighted by footage left, never the same clip
+    twice in a row when avoidable) at a random in-point that doesn't overlap an
+    earlier pick — 'random angles in random order'. Seeded, so re-plans repeat."""
+    rng = random.Random(seed if seed is not None else 0)
+    pool = pool_of(project, clips)
+    durs = slot_durs(project)
+    for i in slots:
+        d = durs[i]
+        prev = project["slots"][i - 1]["clip"] if i > 0 and project["slots"][i - 1] else None
+        cands = [c for c in pool if c["duration"] - TAIL_PAD >= d]
+        if not cands:
+            die(f"slot {i + 1} ({d:.2f}s) is longer than every clip")
+        fresh = [c for c in cands if free_footage(project, c) >= d]
+        if len(fresh) > 1 and prev is not None:
+            fresh = [c for c in fresh if c["id"] != prev] or fresh
+        picks = fresh or cands
+        weights = [max(free_footage(project, c), 0.2) for c in picks]
+        c = rng.choices(picks, weights=weights, k=1)[0]
+        lo = HEAD_TRIM if c["duration"] > 1.0 else 0.0
+        hi = c["duration"] - TAIL_PAD
+        used = sorted(used_ranges(project, skip=i).get(c["id"], []))
+        # free windows that can hold d, then a random start inside a random window
+        windows, cursor = [], lo
+        for s, e in used:
+            if s - cursor >= d:
+                windows.append((cursor, s - d))
+            cursor = max(cursor, e)
+        if hi - cursor >= d:
+            windows.append((cursor, hi - d))
+        if windows:
+            a, b = rng.choices(windows, weights=[b - a + 0.01 for a, b in windows], k=1)[0]
+            start = rng.uniform(a, b)
+        else:  # footage exhausted: re-show, but somewhere random
+            start = rng.uniform(lo, max(lo, hi - d))
+        project["slots"][i] = {"clip": c["id"], "in": round(start, 3)}
+
+
 def assign_all(project: dict, clips: list[dict], shuffle_seed: int | None) -> None:
     pool = pool_of(project, clips)
     n = len(project["cuts"]) - 1
@@ -815,6 +853,9 @@ def assign_all(project: dict, clips: list[dict], shuffle_seed: int | None) -> No
     story = [cid for cid in (project.get("story") or []) if cid in byid]
     if story:
         assign_story(project, clips, story, free, project.get("seed"))
+        return
+    if project.get("random"):
+        assign_random(project, clips, free, project.get("seed"))
         return
     order = sorted(free, key=lambda i: -durs[i])
     clip_order = sorted(pool, key=lambda c: -c["duration"])
@@ -893,6 +934,7 @@ def cmd_plan(args) -> None:
         "hero": int(args.hero) if args.hero else None,
         "first": int(args.first) if args.first else None,
         "story": parse_ids(args.story),
+        "random": bool(args.random),
         "seed": args.seed,
         "caption": None,
     })
@@ -1244,24 +1286,42 @@ def capcut_bin() -> list[str]:
     die("capcut-cli isn't installed — run: npm install -g capcut-cli")
 
 
+def capcut_running() -> bool:
+    return subprocess.run(["pgrep", "-f", "CapCut.app/Contents/MacOS/CapCut"], capture_output=True).returncode == 0
+
+
+def quit_capcut(timeout: float = 20.0) -> None:
+    import time
+    subprocess.run(["osascript", "-e", 'tell application "CapCut" to quit'], capture_output=True)
+    t0 = time.time()
+    while capcut_running() and time.time() - t0 < timeout:
+        time.sleep(0.5)
+    if capcut_running():  # a fresh draft has nothing unsaved; the app just ignores AppleScript
+        subprocess.run(["pkill", "-x", "CapCut"], capture_output=True)
+        time.sleep(2)
+
+
 def capcut_spec(project: dict, clips: list[dict]) -> tuple[dict, float]:
     """The edit as a capcut-cli compile spec: one video track with every slot as a
     segment (same frame-exact timing as `render`), one audio track with the sound."""
     byid = {c["id"]: c for c in clips}
     cuts, start = project["cuts"], project["cuts"][0]
     frames = [round((cuts[i + 1] - start) * FPS) - round((cuts[i] - start) * FPS) for i in range(len(cuts) - 1)]
-    items, t = [], 0.0
+    # CapCut stores microseconds; capcut-cli rounds each value on its own, so starts
+    # must be the running sum of the ROUNDED durations or 1 µs gaps appear between
+    # segments — and CapCut closes main-track gaps on open by shifting clips left.
+    items, t_us = [], 0
     for slot, nf in zip(project["slots"], frames):
-        d = nf / FPS
+        d_us = round(nf / FPS * 1_000_000)
         items.append({
             "path": str(Path(byid[slot["clip"]]["path"]).resolve()),
-            "start": round(t, 6),
-            "duration": round(d, 6),
+            "start": t_us / 1_000_000,
+            "duration": d_us / 1_000_000,
             "sourceStart": slot["in"],
             "type": "video",
         })
-        t += d
-    total = round(t, 6)
+        t_us += d_us
+    total = t_us / 1_000_000
     spec = {
         "name": out_name(project),
         "width": W, "height": H, "fps": FPS, "ratio": "9:16",
@@ -1287,12 +1347,18 @@ def cmd_export(args) -> None:
         die(f"CapCut's draft folder isn't there yet ({drafts}). Open CapCut once and create any "
             "empty project — that also gives capcut-cli a real project to seed ours from.")
     dest = drafts / name
-    if dest.exists():
-        if (dest / ".beatcut.json").exists():
-            shutil.rmtree(dest)  # ours from an earlier export: replace it
-        else:
-            die(f"{dest} exists and wasn't made by beatcut — rename it in CapCut or pass --name")
+    if dest.exists() and not (dest / ".beatcut.json").exists():
+        die(f"{dest} exists and wasn't made by beatcut — rename it in CapCut or pass --name")
     cc = capcut_bin()
+    # capcut-cli refuses to write a managed draft while the editor is open (the app may
+    # overwrite it), so quit CapCut first — and only THEN replace an earlier export
+    if capcut_running():
+        print("CapCut is open — quitting it so the draft can be written…")
+        quit_capcut()
+        if capcut_running():
+            die("CapCut wouldn't quit (an unsaved project dialog?). Close it and re-run export.")
+    if dest.exists():
+        shutil.rmtree(dest)  # ours from an earlier export: replace it
     p = run(cc + ["compile", str(spec_path), "--out", str(dest), "--template", "auto"], check=False)
     if p.returncode:
         die(f"capcut compile failed:\n{(p.stderr or p.stdout)[-1500:]}")
@@ -1350,6 +1416,7 @@ def main() -> None:
     s.add_argument("--preset", choices=list(DENSITY_PRESETS), help="how often to cut: tight (default), loose, chill")
     s.add_argument("--first", type=int, metavar="CLIP", help="clip number that always opens the video (slot 1 is cut to fit it)")
     s.add_argument("--story", metavar="IDS", help="clip numbers in story order, e.g. 2,1,3 — footage is used chronologically across the video")
+    s.add_argument("--random", action="store_true", help="random clip + random in-point per slot, no footage re-shown (use --seed to vary / repeat)")
     s.add_argument("--hero", type=int, help="clip number that lands on the drop (default: the longest; ignored with --story)")
     s.add_argument("--exclude", nargs="*", help="clip numbers to leave out")
     s.add_argument("--shuffle", action="store_true", help="random clip order instead of longest-to-longest (no --story)")

@@ -46,8 +46,12 @@ chronologically inside each clip, so a long take plays out across the video and 
 clip still appears; a clip that can't hold a slot is skipped for that slot but stays open
 for a later shorter one; footage is re-shown only when the whole story runs out),
 `--seed N` (jitters each pick within its own gap → a second variation of the same story,
-never a wrap-around), `--preset tight|loose|chill` (density presets; `density loose` on an
-existing project). With `--story`, `hero` is ignored (the drop takes whatever story moment
+never a wrap-around), `--random` (every slot: a random clip weighted by footage left, never
+the same clip twice in a row, at a random in-point that overlaps no earlier pick — "random
+angles in random order"; seeded by `--seed`; this is what day2_5 used over the take's first
+and last 22 s, which were carved out as their own clips with `ffmpeg -ss/-t -c copy` because
+"only use these parts of the clip" is easiest as two clips), `--preset tight|loose|chill`
+(density presets; `density loose` on an existing project). With `--story`, `hero` is ignored (the drop takes whatever story moment
 falls there — pick the story/seed so a strong moment lands on it, check `board`). A sound
 shorter than `--length` plays to its END (meme sounds keep the punchline in the tail).
 `frames <clip…>` writes a timestamped frame sheet per clip (`out/_frames_<clip>.jpg`) — the
@@ -71,7 +75,12 @@ the CapCut-9.x-on-macOS recipe from capcut-cli's version matrix: `sync-timelines
 --apply` (the app reads `Timelines/<id>/draft_info.json`, not only the root file),
 `register --materials --apply` (else every clip shows "file inaccessible" on 9.1+), and
 `lint --fix`. capcut-cli (`npm install -g capcut-cli`, found under nvm) is the only
-dependency; `capcut doctor` checks the environment.
+dependency; `capcut doctor` checks the environment. Segment starts in the spec are the
+running sum of the µs-ROUNDED durations: capcut-cli rounds each value separately, so
+float starts left 1 µs gaps on the main track, which CapCut closes on open by shifting
+every later clip left (lint `main-track-gap`). capcut-cli refuses to write a managed draft
+while CapCut is running — `export` on an open project needs CapCut quit first
+(`osascript -e 'quit app "CapCut"'`), then `--open` brings it back.
 
 ⚠️ **One-time per machine:** CapCut 9.x refuses drafts built from capcut-cli's bundled
 6.5-era template ("from an unusual path"), so `--template auto` seeds new drafts from the

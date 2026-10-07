@@ -31,6 +31,9 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   `chill` for 4-8 s shots.
 - **"X + Y + Z"** (several locations) → `--story` in the order he lists them unless the
   footage says otherwise; longer clips get more slots automatically.
+- **"only use the first/last N seconds of the take, random order, any angles"** → carve
+  those windows out as their own clips (`ffmpeg -ss … -t … -c copy`, lossless, seconds),
+  then `--random --seed N` (plus `--first` for the opener). day2_5 is the reference.
 - Length: default 30 s; `--length N` ends on the nearest downbeat.
 
 ## The procedure (every time)
@@ -101,3 +104,12 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   once became the whole video). Sound→video pairing: longer sounds to the long take,
   short punchy ones to the three-location montage; `tight` on a 9 s sound so all three
   locations fit.
+- **2026-10-07, day 2 follow-up.** Ernest's verdict on the barber videos: the long take's
+  MIDDLE (talking to the barber, the cape going on, ~22-90 s) is dead; the first and last
+  ~20 s carry it, and he wants random angles in random order. Chronological story mode
+  was the wrong instinct there → `--random` mode + carved windows (day2_5). Also: CapCut
+  export shipped (`export --open`, via capcut-cli); first real draft went into an EMPTY
+  store, so it carries the bundled 6.5 template markers that CapCut 9.x may refuse —
+  the one-time "create an empty project in CapCut" seed is still pending Ernest.
+  Computer use is not available in this app session, so "does it open in CapCut" can
+  only be confirmed by Ernest or by CapCut writing `Timelines/` into the draft folder.
