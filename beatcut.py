@@ -129,11 +129,11 @@ def out_dir(project: dict | None = None, clip_path: str | None = None) -> Path:
     """Where a project's files go: out/dayN/ for a project named dayN_V (or a clip under
     clips/dayN/), else out/. The convention: clips/day2/ → -p day2_1 → out/day2/day2_1.mp4."""
     day = None
-    if clip_path:
-        m = re.search(r"/(day\d+)/", clip_path)
+    if clip_path:  # any shoot folder under clips/ (day4, tennis, gym_oct9…)
+        m = re.search(r"/clips/([^/]+)/", clip_path)
         day = m.group(1) if m else None
-    if day is None and project is not None:
-        m = re.match(r"(day\d+)_", out_name(project))
+    if day is None and project is not None:  # project <folder>_V → out/<folder>/
+        m = re.match(r"(.+)_\d+$", out_name(project))
         day = m.group(1) if m else None
     d = OUT / day if day else OUT
     d.mkdir(parents=True, exist_ok=True)
@@ -276,6 +276,14 @@ def fetch_sound(src: str, cookies: str | None = None) -> tuple[Path, dict]:
     SOUND.mkdir(exist_ok=True)
     p = Path(src).expanduser()
     if p.exists():
+        p = p.resolve()
+        if p.parent == SOUND.resolve() and p.suffix == ".mp3":
+            # already one of ours: analyze IN PLACE. Christian hit the alternative on
+            # 2026-10-08 — ffmpeg re-encoding a file onto itself truncated DUNG DING
+            # BREGA to 1.4 s (Path equality missed the same file spelled two ways).
+            meta = {"source": str(p), "title": p.stem}
+            save_json(p.with_suffix(".source.json"), meta)
+            return p, meta
         slug, raw = slugify(p.stem), p
         meta = {"source": str(p), "title": p.stem}
     elif "tiktok.com" in src:
