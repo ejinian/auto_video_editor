@@ -126,3 +126,39 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   Recording to the lowercase `claude` runtime. Verified: editor open on day2_5, 15 clips
   + the mp3 on the timeline, 18:02, 9:16, 30 fps. His rule for this kind of thing:
   iterate, but not endlessly — "if it's stubborn it's no big deal".
+- **2026-10-07, day 3 (Christian's machine; gym "coding on the laptop everywhere" bit, 10
+  clips).** First session in a git WORKTREE: `clips/ sound/ out/` are gitignored, so they
+  don't exist in the worktree — symlink them to `~/Desktop/beatcut/{clips,sound,out}` and
+  every path in this file stays true. Christian delegates the sound ("just pick the best
+  one and cut it"): read the footage FIRST, then match a sound to the bit, not the other
+  way round. Picked DUNG DING BREGA (3VILCORE & PHEYX; #4 on TikTok that week, "chaotic,
+  hyped, ironic, meme compilations") via the music-page link — headless Chromium worked
+  first try on a fresh machine. `-p` goes BEFORE the subcommand (`-p day3_1 sound …`).
+  Two 21 s bench takes had the laptop only in their last 4-5 s, and story quotas spread
+  slots evenly inside a clip, so the punchline would never be picked → carved each take
+  into a 7-8 s "reps" piece and a 4-6 s "laptop" piece (`ffmpeg -ss -t -c copy`) and
+  listed all 12 pieces in `--clips`. Story mode put plain benching on the drop → `set
+  <dropslot> <clip> --at <sec>` is the hero control when `--story` is on. The scene-detect
+  check flagged a cut the detector couldn't see: a jump cut inside the same take (clip
+  used x2 in adjacent slots, same framing) — that's a real visual weakness, not a false
+  alarm; replace one of the two slots with another clip. 17/17 cuts verified after.
+- **2026-10-07, day 3 variation (day3_2, "geekin" by Nemzzz).** Christian: "use that British
+  rap one I just heard you playing" — he had heard nothing from beatcut; a background
+  research agent had TikTok pages open in the built-in browser pane, which AUTOPLAYS with
+  sound even while hidden. When he names a sound "you were playing", `tabs_context` +
+  `get_page_text` on the TikTok tabs finds it (video link → tikwm, worked first try).
+  A 22 s "original sound" post audio with flat energy after a soft 4 s drop → `--preset
+  loose` gave 9 shots of 2-4 s, a real contrast to the 18-cut tight version on the same
+  clips; different opener (`--first`), reversed story, hang moved onto the drop with
+  `set`. Story quotas again dealt the same clip to two adjacent slots and dropped two
+  plain-reps pieces back-to-back at the end — the board catches both every time.
+- **2026-10-08, the buttons + /day.** Christian asked for "a UI to use these features
+  easily" → `ui.py` (Flask, one file, every button = a `beatcut.py` subprocess; job page
+  polls a log; `.claude/launch.json` has `beatcut-ui`), `HOWTO.md` (the shoot-day
+  procedure, served at /howto), and `.claude/skills/day/SKILL.md` (`/day N` = frames →
+  sound → two variations → hook burned in → caption + lint → deliver). Testing the
+  "Make variation" button found a real CLI hazard: `sound <local mp3 inside sound/>`
+  rewrites the mp3 onto itself and truncates it to ~1.4 s; the only tell was a 1-slot
+  plan. Fixed in the UI by writing the `.sound.json` pointer instead; the CLI still has
+  the hazard, so never point `sound` at `sound/`. Renders are ~10 s here on
+  videotoolbox, not a minute.

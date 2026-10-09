@@ -221,3 +221,25 @@ and compare `pts_time`s to `project.json` cuts minus `cuts[0]`.
   here** — on 2026-10-05 it started compiling LLVM from source and had to be killed.
 - `setup` checks ffmpeg / yt-dlp / the font and installs the headless browser — run it once
   on a new machine (Christian's).
+
+## The buttons: `ui.py` (2026-10-08)
+
+`uv run ui.py` → http://127.0.0.1:8765 (or `preview_start beatcut-ui` from Claude; see
+`.claude/launch.json`). A single-file Flask app that shells out to `uv run beatcut.py …`
+for every button and reads the same `projects/*.json` + `out/dayN/` files, so the CLI,
+the chat and the buttons never disagree. Pages: days (clip thumbnails, numbered) → "Cut
+it" form (sound link or an already-downloaded sound, length, preset, opener, story
+order, random, seed, on-screen hook) → a job page that streams the log and opens the
+video page when done → video page (player, storyboard, slot table with the DROP marked,
+every edit command as a form, Render, Open in CapCut, Make variation, the post caption
+saved as `out/dayN/dayN_V.caption.txt`). "Edited since the last render" = the project
+file is newer than the mp4. **Gotcha:** `sound sound/x.mp3` re-imports the file onto
+itself and TRUNCATES it (lost DUNG DING BREGA to 1.4 s once); the UI therefore writes the
+`projects/<name>.sound.json` pointer directly (`link_sound`) for existing sounds. Never
+run `sound` on a path inside `sound/`. `HOWTO.md` (also served at /howto) is the
+step-by-step for a shoot day; `/day N` in the chat is the one-command version.
+
+**`/day` is the loop (2026-10-08):** `/day plan` (idea + shot list from the swipe file,
+rotating formulas via `projects/ideas.md`, saved as `projects/dayN.plan.md`), `/day N`
+(cut two variations, hook on screen, caption), `/day post N` (hand-off). `tools/day.py`
+prints the facts the skill decides from. Skill text: `.claude/skills/day/SKILL.md`.
