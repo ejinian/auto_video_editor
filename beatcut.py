@@ -28,6 +28,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 import urllib.error
 import urllib.parse
@@ -553,10 +554,10 @@ def tile(items: list[tuple[str, float]], labels: list[str], out_path: Path, cols
     """Grab one frame per item, label it, and lay them out in a grid (Pillow does the text)."""
     from PIL import Image, ImageDraw
     cw, ch, pad = 270, 480, 4
-    tmp = OUT / ".frames"
-    if tmp.exists():
-        shutil.rmtree(tmp)
-    tmp.mkdir(parents=True)
+    # Per-process temp dir: several agents run frames/board at once, and a shared
+    # out/.frames that each caller rmtree'd wiped the others' half-written frames.
+    OUT.mkdir(parents=True, exist_ok=True)
+    tmp = Path(tempfile.mkdtemp(prefix=".frames-", dir=OUT))
     rows = max(1, math.ceil(len(items) / cols))
     sheet = Image.new("RGB", (cols * cw + (cols + 1) * pad, rows * ch + (rows + 1) * pad), "black")
     fnt = font(30)
@@ -1100,7 +1101,7 @@ def cmd_in(args) -> None:
     i = parse_ref(args.slot, project, "slot")
     clip = clip_by_id(clips, project["slots"][i]["clip"])
     hi = clip["duration"] - slot_durs(project)[i] - TAIL_PAD
-    project["slots"][i]["in"] = round(max(0.0, min(float(args.seconds), hi)), 3)
+    project["slots"][i] = {"clip": clip["id"], "in": round(max(0.0, min(float(args.seconds), hi)), 3)}  # drops a stale `reused` flag
     finish(project, clips, f"slot {i + 1} now starts {project['slots'][i]['in']:.2f}s into clip {clip['id']} (max {hi:.2f})")
 
 

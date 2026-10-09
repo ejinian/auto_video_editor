@@ -1,0 +1,69 @@
+{
+ "name": "day1_2",
+ "clips": [
+  "clips/day1/IMG_2739.MOV",
+  "clips/day1/IMG_2740.MOV",
+  "clips/day1/IMG_2742.MOV",
+  "clips/day1/IMG_2743.MOV",
+  "clips/day1/IMG_2744.MOV",
+  "clips/day1/IMG_2745.MOV",
+  "clips/day1/IMG_2746.MOV",
+  "clips/day1/IMG_2748.MOV",
+  "clips/day1/IMG_2749.MOV",
+  "clips/day1/IMG_2751.MOV",
+  "clips/day1/IMG_2752.MOV"
+ ],
+ "sound": "sound/the-worst-808s-known-to-man-857302.mp3",
+ "beats": "sound/the-worst-808s-known-to-man-857302.beats.json",
+ "audio_start": 0.0,
+ "length": 18.0,
+ "density": {
+  "calm": 8,
+  "hype": 4,
+  "burst": 0,
+  "hold": 8
+ },
+ "excluded": [],
+ "hero": null,
+ "first": 7,
+ "story": [],
+ "random": true,
+ "seed": 3,
+ "caption": null,
+ "cuts": [
+  0.0929,
+  3.7616,
+  5.6192,
+  9.3809,
+  11.2617,
+  15.0001,
+  18.155
+ ],
+ "_drops": [],
+ "slots": [
+  {
+   "clip": 7,
+   "in": 8.4
+  },
+  {
+   "clip": 2,
+   "in": 3.59
+  },
+  {
+   "clip": 11,
+   "in": 0.3
+  },
+  {
+   "clip": 1,
+   "in": 4.095
+  },
+  {
+   "clip": 3,
+   "in": 2.86
+  },
+  {
+   "clip": 9,
+   "in": 1.215
+  }
+ ]
+}

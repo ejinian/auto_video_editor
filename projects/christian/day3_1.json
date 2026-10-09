@@ -1,0 +1,150 @@
+{
+ "name": "day3_1",
+ "clips": [
+  "clips/day3/IMG_2478.MOV",
+  "clips/day3/IMG_2476_set.mov",
+  "clips/day3/IMG_2480.MOV",
+  "clips/day3/IMG_2481.MOV",
+  "clips/day3/IMG_2476_laptop.mov",
+  "clips/day3/IMG_2477_set.mov",
+  "clips/day3/IMG_2484.MOV",
+  "clips/day3/IMG_2477_laptop.mov",
+  "clips/day3/IMG_2479.MOV",
+  "clips/day3/IMG_2485.MOV",
+  "clips/day3/IMG_2486.MOV",
+  "clips/day3/IMG_2487.MOV"
+ ],
+ "sound": "sound/dung-ding-brega-557649.mp3",
+ "beats": "sound/dung-ding-brega-557649.beats.json",
+ "audio_start": 0.0,
+ "length": 30.0,
+ "density": {
+  "calm": 4,
+  "hype": 2,
+  "burst": 4,
+  "hold": 4
+ },
+ "excluded": [],
+ "hero": null,
+ "first": 1,
+ "story": [
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12
+ ],
+ "random": false,
+ "seed": null,
+ "caption": null,
+ "cuts": [
+  0.3019,
+  3.0418,
+  3.7152,
+  4.3886,
+  5.0387,
+  5.7121,
+  6.3855,
+  9.0326,
+  11.7029,
+  13.0496,
+  15.6967,
+  18.367,
+  21.0373,
+  23.7076,
+  25.0311,
+  26.3779,
+  27.7014,
+  29.0482,
+  30.3717
+ ],
+ "_drops": [
+  {
+   "bar": 2,
+   "beat": 9,
+   "time": 6.3854875283446715,
+   "ratio": 1.86
+  }
+ ],
+ "slots": [
+  {
+   "clip": 1,
+   "in": 0.3
+  },
+  {
+   "clip": 2,
+   "in": 3.247
+  },
+  {
+   "clip": 3,
+   "in": 4.8
+  },
+  {
+   "clip": 4,
+   "in": 3.687
+  },
+  {
+   "clip": 5,
+   "in": 1.734
+  },
+  {
+   "clip": 6,
+   "in": 1.362
+  },
+  {
+   "clip": 11,
+   "in": 8.8
+  },
+  {
+   "clip": 7,
+   "in": 3.595
+  },
+  {
+   "clip": 1,
+   "in": 3.5
+  },
+  {
+   "clip": 8,
+   "in": 1.6
+  },
+  {
+   "clip": 9,
+   "in": 1.004
+  },
+  {
+   "clip": 3,
+   "in": 1.5,
+   "reused": true
+  },
+  {
+   "clip": 10,
+   "in": 3.401
+  },
+  {
+   "clip": 10,
+   "in": 13.2
+  },
+  {
+   "clip": 4,
+   "in": 1.5
+  },
+  {
+   "clip": 11,
+   "in": 4.8
+  },
+  {
+   "clip": 12,
+   "in": 2.998
+  },
+  {
+   "clip": 12,
+   "in": 9.74
+  }
+ ]
+}

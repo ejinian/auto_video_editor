@@ -1,9 +1,16 @@
 {
- "name": "day2_3",
+ "name": "general_2",
  "clips": [
+  "clips/day1/IMG_2739.MOV",
+  "clips/day1/IMG_2751.MOV",
+  "clips/day1/IMG_2749.MOV",
   "clips/day2/before_barber.MOV",
   "clips/day2/barber_start.mov",
-  "clips/day2/barber_end.mov"
+  "clips/day2/trolley1.mov",
+  "clips/day2/trolley_think1.mov",
+  "clips/day2/apple_store_sit.MOV",
+  "clips/day2/bush.mov",
+  "clips/day3/tennis_ckip.mov"
  ],
  "sound": "sound/the-worst-808s-known-to-man-857302.mp3",
  "beats": "sound/the-worst-808s-known-to-man-857302.beats.json",
@@ -17,14 +24,13 @@
  },
  "excluded": [],
  "hero": null,
- "first": 1,
+ "first": 10,
  "story": [],
  "random": true,
- "seed": 7,
- "caption": null,
+ "seed": 11,
+ "caption": "the office is wherever the laptop opens",
  "cuts": [
   0.0929,
-  1.0217,
   1.8808,
   3.7616,
   4.6904,
@@ -43,64 +49,61 @@
  "_drops": [],
  "slots": [
   {
-   "clip": 1,
+   "clip": 10,
    "in": 0.3
   },
   {
-   "clip": 2,
-   "in": 6.6
-  },
-  {
-   "clip": 3,
-   "in": 7.407
+   "clip": 5,
+   "in": 7.0
   },
   {
    "clip": 2,
-   "in": 18.3
+   "in": 2.7
+  },
+  {
+   "clip": 4,
+   "in": 0.4
+  },
+  {
+   "clip": 9,
+   "in": 0.974
+  },
+  {
+   "clip": 1,
+   "in": 4.0
+  },
+  {
+   "clip": 8,
+   "in": 3.5
+  },
+  {
+   "clip": 6,
+   "in": 1.3,
+   "reused": true
   },
   {
    "clip": 3,
-   "in": 0.86
+   "in": 1.0
   },
   {
-   "clip": 2,
-   "in": 15.429
+   "clip": 5,
+   "in": 0.82
   },
   {
-   "clip": 3,
-   "in": 19.189
+   "clip": 8,
+   "in": 4.5
   },
   {
-   "clip": 2,
-   "in": 12.4
+   "clip": 5,
+   "in": 9.662
   },
   {
-   "clip": 3,
-   "in": 11.886
+   "clip": 7,
+   "in": 0.3
   },
   {
-   "clip": 2,
-   "in": 4.768
-  },
-  {
-   "clip": 3,
-   "in": 4.516
-  },
-  {
-   "clip": 2,
-   "in": 16.4
-  },
-  {
-   "clip": 3,
-   "in": 2.159
-  },
-  {
-   "clip": 2,
-   "in": 10.778
-  },
-  {
-   "clip": 3,
-   "in": 14.037
+   "clip": 10,
+   "in": 8.973
   }
  ]
 }

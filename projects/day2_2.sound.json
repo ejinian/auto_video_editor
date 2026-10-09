@@ -1,14 +1,1 @@
-{
- "sound": "sound/the-worst-808s-known-to-man-857302.mp3",
- "beats": "sound/the-worst-808s-known-to-man-857302.beats.json",
- "meta": {
-  "source": "https://www.tiktok.com/music/The-WORST-808s-known-to-man-7678257386833857302",
-  "post": null,
-  "music_url": "https://v16m.tiktokcdn-us.com/a88d37d072811a9e347bfdbdedd325f4/6ac4ecf1/video/tos/no1a/tos-no1a-v-2370-no/oQooMicpjTPaPBiBGMvcl1b3ImiEAPjYZ36CI/?a=1233&bti=ODszNWYuMDE6&&bt=125&ft=GSDrKInz7Th95VnGXq8Zmo&mime_type=audio_mpeg&rc=aWdoNmc8Mzc7ODo2NjY7M0BpanZ2cnE5cnVkZDMzbzU8NUA1LjIwNmNiXzMxNWI1YWE2YSNocnFlMmQ0YDRhLS1kMTFzcw%3D%3D&vvpl=1&l=2026100606431187A73AB10652E4299977&btag=e000f8000",
-  "title": "The WORST 808s known to man",
-  "author": "LarperOfRaeal\ud83c\udff4\udb40\udc67\udb40\udc62\udb40\udc77\udb40\udc6c\udb40\udc73\udb40\udc7f",
-  "music_id": "7678257386833857302",
-  "original": true,
-  "duration": 18
- }
-}
+{"sound": "sound/original-sound-359950.mp3", "beats": "sound/original-sound-359950.beats.json", "meta": {"title": "original-sound-359950"}}

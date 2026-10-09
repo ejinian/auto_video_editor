@@ -10,6 +10,25 @@ The tool is `~/Desktop/beatcut/beatcut.py` (`uv run beatcut.py …`, run from th
 This skill is the *workflow*: what Ernest asks for, how to turn it into commands, how to
 verify, and what we've learned. Append to the lessons log at the bottom every day.
 
+## Ernest's rules for working with him (2026-10-09; Christian may run it differently)
+
+- **Claude is the consultant.** Suggest the right thing, including mid-automation, and
+  VERIFY: frames at the right moments, the storyboard, the scene check, the swipe file.
+  He decides. Nothing posts.
+- **Two kinds of video.** *Day-specific* = clips of one day's theme only ("claude, connect
+  to the barber shop" = only walking-to / at-the-barber clips), named `dayN_V`.
+  *Generalized* = mixes clips across days ("life after claude code"), named `general_V`
+  (→ `out/general/`). Don't mix days unless it's a generalized video.
+- **Sounds are a pool** (`sound/`). Pick from it, or find new ones through the skills.
+  Beat-sync is optional — brainrot first; he decides after seeing the first output.
+- **Never `export --open` unless he explicitly asks.** Ideally he never edits. He will say
+  when he wants a surgical change; only then open CapCut. Otherwise always render the mp4
+  into `out/…` so he can watch it.
+- **Re-rolls:** he may clear `out/` and ask for a batch (e.g. 3 × day 1, 3 × day 2, 1 ×
+  day 3, 2 generalized). Produce them all, verify each, send each as it's done.
+- Christian's own day-3 edit configs live in `projects/christian/` (his clips, not here);
+  Ernest's day 3 is the tennis clip.
+
 ## The ask, decoded
 
 - **"day N"** → clips live in `clips/dayN/`. Ernest NAMES the clips (`before_barber.MOV`,
@@ -175,3 +194,20 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   text that stays up, lint WITHOUT `--fix`. After a Claude app restart the runtime path
   changes and the Accessibility / Screen Recording grants stop applying (`--open` can't
   click, `winshot` fails) — re-grant the new `claude` entry. CapCut here reports 8.7.0.
+- **2026-10-09, the re-roll (9 videos in parallel: 3 × day 1, 3 × day 2, 1 × day 3, 2
+  generalized).** Ernest cleared `out/` and asked for a batch; one Workflow agent per video
+  (frames → plan → board → fix → render → verify → structured result) cut all nine in
+  ~14 minutes, every one 100% on the scene check. Lessons: (1) `tile()` used ONE shared
+  scratch dir that every process rmtree'd — concurrent `frames`/`board` runs deleted each
+  other's frames and one sheet came back with another clip's frames; now a per-process
+  `tempfile.mkdtemp` (an agent fixed it mid-run). (2) The random/story plans are a
+  starting point, never the edit: every agent re-set 3-9 slots from the frame sheets —
+  passers-by (barber_start 13.5-14.5 s and 20 s; IMG_2745 at 3.7-4.9 s; IMG_2748 at
+  4.8-5.9 s; IMG_2746 at 1-4.7 s), laptop-only close-ups (barber_start 0-4 s), the
+  trolley2 street pan (5-7 s), apple_store_sit's tabletop pan (from 7.5 s), far-away
+  openers that don't read in half a second. (3) `in` left a stale `reused` flag → fixed.
+  (4) For a one-take clip (tennis), `--random` gives the shape but the hits must be placed
+  by hand from a dense sheet (`--n 26`); same-framing jump cuts inside the take are the
+  thing to hunt. (5) A generalized video needs the recap/burst slots filled with UNUSED
+  moments of already-seen clips, not repeats — merge the flashes, re-deal the bursts.
+  Boards reviewed by the lead for general_1/2, day3_1, day1_1, day2_1: all clean.

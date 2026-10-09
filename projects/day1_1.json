@@ -1,4 +1,18 @@
 {
+ "name": "day1_1",
+ "clips": [
+  "clips/day1/IMG_2739.MOV",
+  "clips/day1/IMG_2740.MOV",
+  "clips/day1/IMG_2742.MOV",
+  "clips/day1/IMG_2743.MOV",
+  "clips/day1/IMG_2744.MOV",
+  "clips/day1/IMG_2745.MOV",
+  "clips/day1/IMG_2746.MOV",
+  "clips/day1/IMG_2748.MOV",
+  "clips/day1/IMG_2749.MOV",
+  "clips/day1/IMG_2751.MOV",
+  "clips/day1/IMG_2752.MOV"
+ ],
  "sound": "sound/call-it-what-you-like-slowed-635841.mp3",
  "beats": "sound/call-it-what-you-like-slowed-635841.beats.json",
  "audio_start": 0.0,
@@ -11,6 +25,10 @@
  },
  "excluded": [],
  "hero": null,
+ "first": 11,
+ "story": [],
+ "random": true,
+ "seed": 1,
  "caption": null,
  "cuts": [
   0.2322,
@@ -37,66 +55,52 @@
  ],
  "slots": [
   {
-   "clip": 4,
-   "in": 2.977
-  },
-  {
-   "clip": 6,
-   "in": 2.775
-  },
-  {
-   "clip": 7,
+   "clip": 11,
    "in": 0.3
   },
   {
-   "clip": 10,
-   "in": 1.603
-  },
-  {
-   "clip": 9,
-   "in": 2.176
-  },
-  {
-   "clip": 5,
-   "in": 2.485
-  },
-  {
-   "clip": 7,
-   "in": 7.642
-  },
-  {
-   "clip": 2,
-   "in": 4.527
+   "clip": 4,
+   "in": 0.3
   },
   {
    "clip": 3,
-   "in": 3.742
+   "in": 4.208
+  },
+  {
+   "clip": 7,
+   "in": 6.3
   },
   {
    "clip": 1,
-   "in": 7.397
-  },
-  {
-   "clip": 11,
-   "in": 2.854
+   "in": 14.576
   },
   {
    "clip": 8,
-   "in": 2.959
+   "in": 2.988
+  },
+  {
+   "clip": 1,
+   "in": 8.3
+  },
+  {
+   "clip": 10,
+   "in": 0.336
+  },
+  {
+   "clip": 5,
+   "in": 1.54
+  },
+  {
+   "clip": 2,
+   "in": 5.0
+  },
+  {
+   "clip": 6,
+   "in": 0.5
+  },
+  {
+   "clip": 2,
+   "in": 9.5
   }
- ],
- "name": "day1_1",
- "clips": [
-  "clips/day1/IMG_2739.MOV",
-  "clips/day1/IMG_2740.MOV",
-  "clips/day1/IMG_2742.MOV",
-  "clips/day1/IMG_2743.MOV",
-  "clips/day1/IMG_2744.MOV",
-  "clips/day1/IMG_2745.MOV",
-  "clips/day1/IMG_2746.MOV",
-  "clips/day1/IMG_2748.MOV",
-  "clips/day1/IMG_2749.MOV",
-  "clips/day1/IMG_2751.MOV",
-  "clips/day1/IMG_2752.MOV"
  ]
 }
