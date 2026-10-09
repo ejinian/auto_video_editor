@@ -57,6 +57,26 @@ clicks for you. macOS has to trust the process that does the clicking:
 
 Claude Code may need its session restarted after the grant.
 
+## 4b. The Instagram skills (what `/day` and the captions run on)
+
+Thirteen `/ig-*` skills from [Jakeschincariol/instagram-agent-skill](https://github.com/Jakeschincariol/instagram-agent-skill)
+(MIT, no API keys, nothing posts). Install them globally so they work in every session:
+
+```bash
+git clone --depth 1 https://github.com/Jakeschincariol/instagram-agent-skill.git /tmp/igskills
+cp -r /tmp/igskills/skills/ig-* ~/.claude/skills/
+mkdir -p ~/.claude/instagram
+cp ~/Desktop/beatcut/research/voice.youngvibas.md ~/.claude/instagram/voice.md   # our shared voice file
+cp ~/Desktop/beatcut/research/swipe-2026-10-09.md ~/.claude/instagram/swipe.md   # the current research
+```
+
+What each does is in that repo's README; the ones we use daily are `/ig-viral` (research →
+swipe file), `/ig-reel` (hook options scored off 26 formulas, `hookscore.py`),
+`/ig-caption` (caption + the 125-character lint, `caption.py`) and `/ig-human` (strips the
+AI tells and scores it). `/day` calls them. The swipe file goes stale after ~30 days;
+`/ig-viral` rebuilds it (on TikTok, where view counts are public — see the research
+notes in `research/`).
+
 ## 5. Smoke test
 
 ```bash
