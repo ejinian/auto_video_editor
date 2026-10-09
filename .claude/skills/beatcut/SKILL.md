@@ -216,3 +216,16 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   thing to hunt. (5) A generalized video needs the recap/burst slots filled with UNUSED
   moments of already-seen clips, not repeats — merge the flashes, re-deal the bursts.
   Boards reviewed by the lead for general_1/2, day3_1, day1_1, day2_1: all clean.
+- **2026-10-09, the redo after Ernest's verdict.** Kept day1_1, day1_3, day3_1; redid
+  day1_2, day2_1-3, general_1-2. Three rules came out of it and are now in the tool:
+  (1) **no lighting changes** — the complaint was HDR (HLG) clips rendered to SDR without
+  tone mapping; ffmpeg here has no zscale/libplacebo, so `sdr_proxy()` runs macOS
+  `avconvert` once per HDR clip (Apple's mapping = the phone look; L 112 vs 136 on the
+  same frame, real blacks and greens back) and everything reads the proxy; (2) **no beat
+  sync unless asked** — free cuts are the default, `--sync` is opt-in; (3) **`final/`** is
+  the deliverable folder, `out/` the workspace. day3_1 was re-rendered through its proxy
+  with the identical cut. Agent lessons: a seeded free/story plan is a shape, not an edit
+  (every agent re-set most in-points from the sheets); `frames --n 26` on a 1.5 s clip
+  sampled past the last frame (clamped now); `split` only cuts on the old beat grid in
+  free mode, so one agent hand-wrote the cut list into the project JSON — a `cut <slot>
+  <sec>` command would be the honest fix. Pre-build HDR proxies BEFORE a parallel batch.

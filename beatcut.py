@@ -615,7 +615,9 @@ def cmd_frames(args) -> None:
         clips = scan_clips()
     for c in clips:
         n = args.n or max(6, min(30, round(c["duration"] / 4)))
-        times = [c["duration"] * i / n + 0.05 for i in range(n)]
+        # never sample past the last frame (a dense --n on a 1.5 s clip did, and ffmpeg
+        # fails with a misleading "Non full-range YUV" error)
+        times = [min(c["duration"] * i / n + 0.05, max(0.0, c["duration"] - 0.1)) for i in range(n)]
         out = out_dir(None, c["path"]) / f"_frames_{Path(c['name']).stem}.jpg"
         tile([(c["path"], t) for t in times], [f"{t:.1f}s" for t in times], out, cols=6)
         print(f"{Path(c['name']).name}: {n} frames over {c['duration']:.1f}s -> {rel(out)}")

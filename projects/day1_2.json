@@ -1,69 +1,79 @@
 {
  "name": "day1_2",
  "clips": [
+  "clips/day1/IMG_2752.MOV",
   "clips/day1/IMG_2739.MOV",
-  "clips/day1/IMG_2740.MOV",
-  "clips/day1/IMG_2742.MOV",
-  "clips/day1/IMG_2743.MOV",
-  "clips/day1/IMG_2744.MOV",
-  "clips/day1/IMG_2745.MOV",
   "clips/day1/IMG_2746.MOV",
-  "clips/day1/IMG_2748.MOV",
-  "clips/day1/IMG_2749.MOV",
   "clips/day1/IMG_2751.MOV",
-  "clips/day1/IMG_2752.MOV"
+  "clips/day1/IMG_2749.MOV",
+  "clips/day1/IMG_2745.MOV",
+  "clips/day1/IMG_2740.MOV"
  ],
- "sound": "sound/the-worst-808s-known-to-man-857302.mp3",
- "beats": "sound/the-worst-808s-known-to-man-857302.beats.json",
+ "sound": "sound/video-by-alan-samer-z8pq1uiubt.mp3",
+ "beats": "sound/video-by-alan-samer-z8pq1uiubt.beats.json",
  "audio_start": 0.0,
- "length": 18.0,
+ "length": 13.0,
  "density": {
   "calm": 8,
   "hype": 4,
   "burst": 0,
   "hold": 8
  },
+ "preset": "loose",
+ "sync": false,
  "excluded": [],
  "hero": null,
- "first": 7,
- "story": [],
- "random": true,
- "seed": 3,
+ "first": 1,
+ "story": [
+  2,
+  3,
+  4,
+  5,
+  6,
+  7
+ ],
+ "random": false,
+ "seed": 4,
  "caption": null,
  "cuts": [
-  0.0929,
-  3.7616,
-  5.6192,
-  9.3809,
-  11.2617,
-  15.0001,
-  18.155
+  0.0,
+  1.8248865615273822,
+  3.4105854231426704,
+  5.523490259841896,
+  7.202440347286235,
+  8.722167519509496,
+  10.658,
+  12.561
  ],
  "_drops": [],
  "slots": [
   {
-   "clip": 7,
-   "in": 8.4
+   "clip": 1,
+   "in": 0.9
   },
   {
    "clip": 2,
-   "in": 3.59
-  },
-  {
-   "clip": 11,
-   "in": 0.3
-  },
-  {
-   "clip": 1,
-   "in": 4.095
+   "in": 8.0
   },
   {
    "clip": 3,
-   "in": 2.86
+   "in": 5.2
   },
   {
-   "clip": 9,
-   "in": 1.215
+   "clip": 4,
+   "in": 0.7
+  },
+  {
+   "clip": 5,
+   "in": 0.3
+  },
+  {
+   "clip": 6,
+   "in": 0.4
+  },
+  {
+   "clip": 7,
+   "in": 8.5
   }
  ]
 }

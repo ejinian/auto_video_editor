@@ -1,75 +1,73 @@
 {
  "name": "day2_2",
  "clips": [
+  "clips/day2/apple_store_sit.MOV",
   "clips/day2/trolley2.mov",
   "clips/day2/trolley1.mov",
   "clips/day2/trolley_think1.mov",
   "clips/day2/trolley_think2.mov",
-  "clips/day2/apple_store_sit.MOV",
   "clips/day2/bush.mov"
  ],
- "sound": "sound/original-sound-359950.mp3",
- "beats": "sound/original-sound-359950.beats.json",
+ "sound": "sound/the-worst-808s-known-to-man-857302.mp3",
+ "beats": "sound/the-worst-808s-known-to-man-857302.beats.json",
  "audio_start": 0.0,
- "length": 10.0,
+ "length": 12.0,
  "density": {
-  "calm": 4,
-  "hype": 2,
-  "burst": 4,
-  "hold": 4
+  "calm": 8,
+  "hype": 4,
+  "burst": 0,
+  "hold": 8
  },
+ "preset": "loose",
+ "sync": false,
  "excluded": [],
  "hero": null,
- "first": 6,
+ "first": 1,
  "story": [
   1,
-  4,
   2,
-  5
+  3,
+  4,
+  5,
+  6
  ],
  "random": false,
- "seed": null,
+ "seed": 6,
  "caption": null,
  "cuts": [
-  0.1161,
-  1.1842,
-  2.2291,
-  3.1811,
-  5.2245,
-  6.2694,
-  7.3375,
-  9.456
+  0.0,
+  2.828012150770993,
+  4.226,
+  5.707529426946501,
+  7.0356,
+  9.8453,
+  12.0
  ],
  "_drops": [],
  "slots": [
   {
-   "clip": 6,
-   "in": 0.3
-  },
-  {
    "clip": 1,
-   "in": 2.619
+   "in": 4.0
   },
   {
    "clip": 2,
-   "in": 0.9,
-   "reused": true
-  },
-  {
-   "clip": 1,
-   "in": 8.3
+   "in": 1.9
   },
   {
    "clip": 3,
+   "in": 0.897
+  },
+  {
+   "clip": 4,
+   "in": 0.287
+  },
+  {
+   "clip": 2,
+   "in": 7.4
+  },
+  {
+   "clip": 6,
    "in": 0.3
-  },
-  {
-   "clip": 5,
-   "in": 2.3
-  },
-  {
-   "clip": 5,
-   "in": 4.5
   }
  ]
 }
