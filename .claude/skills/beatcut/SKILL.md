@@ -126,3 +126,16 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   Recording to the lowercase `claude` runtime. Verified: editor open on day2_5, 15 clips
   + the mp3 on the timeline, 18:02, 9:16, 30 fps. His rule for this kind of thing:
   iterate, but not endlessly — "if it's stubborn it's no big deal".
+- **2026-10-08, Lisa v1 (SlideLabs promo, not a beat-cut montage).** Brief: "her face, then
+  a transition into SlideLabs, text over it". Clips: a 2.8 s shocked-face selfie and a 51 s
+  earlier post (4 s face, then a phone filming the laptop running SlideLabs). Built outside
+  beatcut (it has no speed or transitions): face on the bar before DUNG DING BREGA's drop, a
+  zoom+blur transition ON the drop, demo in bar-long pieces at 2x / 8.4x / 2.5x, two Pillow
+  captions. Scripts: `out/lisa_v1/lisa_v1_build.py` (mp4) and `lisa_v1_capcut.py` (spec).
+  CapCut export of such an edit: capcut-cli `compile` takes `speed`, text tracks and a
+  `transition` op (`pull-in` ≈ our zoom), BUT (1) compile leaves the speed MATERIAL at 1x
+  — run `capcut speed <draft> <seg> <x>` per segment afterwards, lint flags it as
+  `speed-material-mismatch`; (2) `lint --fix` clamps any caption >7 s to 7 s, so for hook
+  text that stays up, lint WITHOUT `--fix`. After a Claude app restart the runtime path
+  changes and the Accessibility / Screen Recording grants stop applying (`--open` can't
+  click, `winshot` fails) — re-grant the new `claude` entry. CapCut here reports 8.7.0.
