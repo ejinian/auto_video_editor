@@ -38,6 +38,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 CLIPS, SOUND, OUT = ROOT / "clips", ROOT / "sound", ROOT / "out"
 PROJECTS = ROOT / "projects"
+FINAL = ROOT / "final"  # finished videos only, flat — the folder Ernest opens; out/ is the workspace
 FONT = ROOT / "fonts" / "TikTokSans-800.ttf"
 CUR = "default"  # the active project name (-p / --project); set in main()
 DENSITY_PRESETS = {
@@ -440,6 +441,28 @@ def current_sound() -> dict:
 
 # ------------------------------------------------------------------- clips
 
+HDR_TRANSFERS = {"arib-std-b67", "smpte2084"}  # HLG, PQ — what iPhones shoot since ~2020
+
+
+def sdr_proxy(p: Path) -> Path:
+    """An HDR phone clip rendered straight to SDR comes out flat and grey (Ernest:
+    'I hate the lighting changes'). This ffmpeg has no zscale/libplacebo, so the HDR→SDR
+    tone mapping is done ONCE per clip by macOS's own AVFoundation (`avconvert`), which
+    is the same mapping QuickTime and Photos use to show the clip — i.e. the phone look.
+    The proxy (H.264 4K, same length) lives next to the clip in .sdr/ and every stage
+    (frames, board, render, export) reads it instead of the original."""
+    out = p.parent / ".sdr" / (p.stem + ".mov")
+    if out.exists() and out.stat().st_mtime >= p.stat().st_mtime:
+        return out
+    out.parent.mkdir(exist_ok=True)
+    print(f"  tone-mapping {p.name} to SDR once (Apple avconvert)…", file=sys.stderr)
+    r = subprocess.run(["avconvert", "--preset", "Preset3840x2160", "--source", str(p), "--output", str(out)],
+                       capture_output=True, text=True)
+    if r.returncode or not out.exists():
+        die(f"avconvert failed on {p.name}: {(r.stderr or r.stdout)[-400:]}")
+    return out
+
+
 def list_dir_clips(d: Path) -> list[Path]:
     if not d.is_dir():
         die(f"{d} is not a folder")
@@ -471,10 +494,10 @@ def scan_clips(project: dict | None = None) -> list[dict]:
     for i, p in enumerate(files, 1):
         st = p.stat()
         key = f"{p.relative_to(ROOT) if p.is_relative_to(ROOT) else p}:{st.st_size}:{int(st.st_mtime)}"
-        if key not in cache:
+        if key not in cache or "hdr" not in cache[key]:
             out = run([
                 "ffprobe", "-v", "error", "-select_streams", "v:0",
-                "-show_entries", "stream=width,height:stream_side_data=rotation:format=duration",
+                "-show_entries", "stream=width,height,color_transfer:stream_side_data=rotation:format=duration",
                 "-of", "json", str(p),
             ]).stdout
             j = json.loads(out)
@@ -486,9 +509,10 @@ def scan_clips(project: dict | None = None) -> list[dict]:
             w, h = int(s["width"]), int(s["height"])
             if rot % 180:
                 w, h = h, w
-            cache[key] = {"duration": float(j["format"]["duration"]), "w": w, "h": h}
+            cache[key] = {"duration": float(j["format"]["duration"]), "w": w, "h": h,
+                          "hdr": s.get("color_transfer") in HDR_TRANSFERS}
         c = dict(cache[key])
-        c.update(id=i, name=p.name, path=str(p))
+        c.update(id=i, name=p.name, src=str(p), path=str(sdr_proxy(p) if c["hdr"] else p))
         clips.append(c)
     CLIPS.mkdir(exist_ok=True)
     save_json(cache_path, cache)
@@ -581,9 +605,12 @@ def cmd_frames(args) -> None:
     OUT.mkdir(exist_ok=True)
     if args.clips:
         paths = [Path(c).expanduser() if Path(c).expanduser().is_absolute() else ROOT / c for c in args.clips]
-        clips = [{"path": str(p), "name": p.name} for p in paths]
-        for c in clips:
-            c["duration"] = float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", c["path"]]).stdout)
+        clips = []
+        for p in paths:
+            tr = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=color_transfer", "-of", "csv=p=0", str(p)]).stdout.strip()
+            media = sdr_proxy(p) if tr in HDR_TRANSFERS else p
+            clips.append({"path": str(media), "name": p.name,
+                          "duration": float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(p)]).stdout)})
     else:
         clips = scan_clips()
     for c in clips:
@@ -667,6 +694,36 @@ def build_cuts(info: dict, start: float, length: float, density: dict, max_slot:
             del cuts[-2]
         if len(cuts) > 2 and cuts[-1] - cuts[-2] > max_slot:  # ...but respect the clips
             cuts.insert(-1, beats[cut_idx[-1]])
+    return cuts
+
+
+FREE_RANGES = {"tight": (0.6, 1.4), "loose": (1.4, 3.2), "chill": (3.0, 6.0)}  # seconds per shot
+
+
+def build_free_cuts(start: float, length: float, duration: float, preset: str, seed: int | None,
+                    max_slot: float, first_max: float | None) -> list[float]:
+    """Cuts that ignore the beats (Ernest's default since 2026-10-09: the sound just plays
+    underneath). Shot lengths are drawn from the preset's range, seeded, so a re-plan
+    repeats and a new seed is a new rhythm. The video still plays the sound to its end
+    when the sound is shorter than the asked length."""
+    rng = random.Random(seed if seed is not None else 0)
+    lo, hi = FREE_RANGES.get(preset, FREE_RANGES["tight"])
+    hi = min(hi, max_slot)
+    lo = min(lo, hi)
+    end = min(start + length, duration)
+    cuts, t = [start], start
+    if first_max is not None:
+        d = min(rng.uniform(lo, hi), first_max)
+        cuts.append(t + d)
+        t += d
+    while end - t > hi * 1.5:
+        d = rng.uniform(lo, hi)
+        cuts.append(t + d)
+        t += d
+    while end - t > max_slot:  # the remainder must still fit the clips
+        cuts.append(t + max_slot * 0.9)
+        t += max_slot * 0.9
+    cuts.append(end)
     return cuts
 
 
@@ -911,8 +968,13 @@ def replan(project: dict, clips: list[dict], shuffle_seed: int | None = None) ->
     if project.get("first"):
         fc = clip_by_id(clips, project["first"])
         first_max = fc["duration"] - TAIL_PAD - (HEAD_TRIM if fc["duration"] > 1.0 else 0.0)
-    project["cuts"] = build_cuts(info, project["audio_start"], project["length"], project["density"], max_slot, first_max)
-    project["_drops"] = [d for d in info["drops"] if project["cuts"][0] <= d["time"] <= project["cuts"][-1]]
+    if project.get("sync"):
+        project["cuts"] = build_cuts(info, project["audio_start"], project["length"], project["density"], max_slot, first_max)
+        project["_drops"] = [d for d in info["drops"] if project["cuts"][0] <= d["time"] <= project["cuts"][-1]]
+    else:
+        project["cuts"] = build_free_cuts(project["audio_start"], project["length"], info["duration"],
+                                          project.get("preset", "tight"), project.get("seed"), max_slot, first_max)
+        project["_drops"] = []
     assign_all(project, clips, shuffle_seed)
 
 
@@ -948,6 +1010,8 @@ def cmd_plan(args) -> None:
         "audio_start": round(start, 3),
         "length": round(length, 3),
         "density": density,
+        "preset": args.preset or "tight",
+        "sync": bool(args.sync),
         "excluded": [int(x) for x in (args.exclude or [])],
         "hero": int(args.hero) if args.hero else None,
         "first": int(args.first) if args.first else None,
@@ -977,9 +1041,10 @@ def show(project: dict, clips: list[dict]) -> None:
         extras.append(f"opens on clip {project['first']}")
     if project.get("story"):
         extras.append("story " + ">".join(map(str, project["story"])) + (f" seed {project['seed']}" if project.get("seed") is not None else ""))
+    rhythm = f"synced to beats, density {project['density']}" if project.get("sync") else f"free cuts, {project.get('preset', 'tight')} preset"
     print(
         f"edit '{out_name(project)}': {Path(project['sound']).stem} · audio from {t0:.2f}s · {cuts[-1] - t0:.1f}s long · "
-        f"{len(durs)} slots · density {project['density']} · caption {cap}"
+        f"{len(durs)} slots · {rhythm} · caption {cap}"
         + (" · " + " · ".join(extras) if extras else "")
     )
     print("  slot   time (s)      dur   clip  file          in     note")
@@ -1204,6 +1269,7 @@ def cmd_retime(args) -> None:
         for kv in args.value:
             if kv in DENSITY_PRESETS:
                 project["density"] = dict(DENSITY_PRESETS[kv])
+                project["preset"] = kv
                 continue
             k, v = kv.split("=")
             if k not in project["density"]:
@@ -1281,8 +1347,12 @@ def cmd_render(args) -> None:
     vers = sorted(vdir.glob(f"{name}.v*.mp4"), key=lambda p: natural_key(p.name))
     nxt = (int(re.search(r"\.v(\d+)\.mp4$", vers[-1].name).group(1)) + 1) if vers else 1
     shutil.copy2(out_path, vdir / f"{name}.v{nxt}.mp4")
+    if not args.draft:  # the finished video, flat, in the one folder Ernest opens
+        FINAL.mkdir(exist_ok=True)
+        shutil.copy2(out_path, FINAL / f"{name}.mp4")
     size = out_path.stat().st_size / 1e6
-    print(f"rendered {rel(out_path)} · {total:.2f}s · {n} cuts · {w}x{h} · {size:.1f} MB (copy: versions/{name}.v{nxt}.mp4)")
+    print(f"rendered {rel(out_path)} · {total:.2f}s · {n} cuts · {w}x{h} · {size:.1f} MB"
+          + ("" if args.draft else f" → final/{name}.mp4") + f" (copy: versions/{name}.v{nxt}.mp4)")
 
 
 # ------------------------------------------------------------------ export
@@ -1511,6 +1581,7 @@ def main() -> None:
                    help="ideal length of the video in seconds, e.g. 10 or 60 — it ends on the nearest downbeat (default 30)")
     s.add_argument("--start", type=float, help="where in the sound to begin (default: the suggested start)")
     s.add_argument("--preset", choices=list(DENSITY_PRESETS), help="how often to cut: tight (default), loose, chill")
+    s.add_argument("--sync", action="store_true", help="cut ON the beats (default: free cuts, the sound just plays underneath)")
     s.add_argument("--first", type=int, metavar="CLIP", help="clip number that always opens the video (slot 1 is cut to fit it)")
     s.add_argument("--story", metavar="IDS", help="clip numbers in story order, e.g. 2,1,3 — footage is used chronologically across the video")
     s.add_argument("--random", action="store_true", help="random clip + random in-point per slot, no footage re-shown (use --seed to vary / repeat)")

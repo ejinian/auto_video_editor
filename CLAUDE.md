@@ -25,6 +25,25 @@ get a finished mp4 with the music baked in, then re-prompt Claude for edits
 | `out/_clips.jpg` | contact sheet of the numbered clips (`sheet`) — Read it to see which clip is which |
 | `out/_board.jpg` | storyboard, one frame per slot (`board`) — Read it to check the result without playing it |
 
+## Ernest's defaults since 2026-10-09 (read before planning anything for him)
+
+- **HDR clips get an SDR proxy, automatically.** iPhone clips from day 2 on are HEVC
+  10-bit HLG BT.2020. Rendering them straight to SDR flattened the picture ("I hate the
+  lighting changes"). This ffmpeg has no `zscale`/`libplacebo`, so `sdr_proxy()` tone-maps
+  each HDR clip ONCE with macOS's own `avconvert --preset Preset3840x2160` (AVFoundation,
+  the same mapping QuickTime/Photos use = the phone look) into `clips/<folder>/.sdr/<stem>.mov`
+  (H.264 4K, rotation baked in), and `scan_clips`/`frames` point every stage at the proxy
+  (`clip["src"]` keeps the original). ~2× realtime; build proxies BEFORE launching parallel
+  agents (two processes writing the same proxy would corrupt it). No other color work,
+  ever, unless he asks.
+- **Free cuts are the default; beats are opt-in.** `plan` now cuts at seeded random shot
+  lengths per preset (`FREE_RANGES`: tight 0.6-1.4 s, loose 1.4-3.2 s, chill 3-6 s) and
+  the sound just plays underneath. `--sync` restores the beat grid (drops, bursts, holds).
+  He says "sync it to the audio" when he wants that.
+- **`final/` is the deliverable folder.** `render` copies the finished mp4 to
+  `final/<name>.mp4` (flat). `out/` stays the workspace (boards, frame sheets, versions);
+  he does not want to navigate it. "Keep only X" = delete the rest from `final/` and `out/`.
+
 ## Projects (day 2+): several videos from one folder of clips
 
 **Naming convention (Ernest, 2026-10-06 — "make it obvious"):** Ernest drops a day's clips

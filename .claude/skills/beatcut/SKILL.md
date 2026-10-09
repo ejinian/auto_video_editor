@@ -20,10 +20,15 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   *Generalized* = mixes clips across days ("life after claude code"), named `general_V`
   (→ `out/general/`). Don't mix days unless it's a generalized video.
 - **Sounds are a pool** (`sound/`). Pick from it, or find new ones through the skills.
-  Beat-sync is optional — brainrot first; he decides after seeing the first output.
+- **No beat sync unless he says "sync it to the audio".** `plan` cuts at free shot
+  lengths by default (`--sync` is the opt-in). Same logic as lighting: nothing he didn't
+  ask for.
+- **No lighting / color changes, ever.** His day-2+ clips are HDR; the tool tone-maps them
+  to SDR proxies with Apple's own mapping so they look like the phone. Never add filters.
+- **`final/` is the only folder he opens.** `render` copies the finished mp4 there. `out/`
+  is the workspace he doesn't want to navigate. "Keep only X" = delete the rest from both.
 - **Never `export --open` unless he explicitly asks.** Ideally he never edits. He will say
-  when he wants a surgical change; only then open CapCut. Otherwise always render the mp4
-  into `out/…` so he can watch it.
+  when he wants a surgical change; only then open CapCut.
 - **Re-rolls:** he may clear `out/` and ask for a batch (e.g. 3 × day 1, 3 × day 2, 1 ×
   day 3, 2 generalized). Produce them all, verify each, send each as it's done.
 - Christian's own day-3 edit configs live in `projects/christian/` (his clips, not here);
