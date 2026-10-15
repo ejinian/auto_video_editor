@@ -12,6 +12,10 @@ long take + trolley / Apple store / Grove bushes, four videos on four TikTok sou
 cut entirely this way. `CLAUDE.md` is the full command reference and every gotcha we hit;
 `.claude/skills/beatcut/SKILL.md` is the workflow Claude follows plus a lessons log.
 
+**The app:** `cd web && npm install && npm run dev` → http://localhost:3000. Every button
+runs the commands below; the Claude panel on each page runs the same agent as Claude Code
+inside this folder (needs `ANTHROPIC_API_KEY` in `web/.env.local`). See `HOWTO.md`.
+
 **New machine? Follow [SETUP.md](SETUP.md)** — tools, CapCut, permissions, smoke test,
 troubleshooting. Hand it to your own Claude Code session and say "set this up".
 
@@ -51,7 +55,8 @@ uv run beatcut.py swap c3 c8    # swap the slots holding clips 3 and 8
 uv run beatcut.py drop 7        # take clip 7 out of the video
 uv run beatcut.py hero 2        # clip 2 lands on the drop
 uv run beatcut.py merge 10      # slot 10 joins slot 9 (longer hold)
-uv run beatcut.py split 9       # slot 9 cut in two
+uv run beatcut.py split 9       # slot 9 cut in two on its middle beat (sync mode)
+uv run beatcut.py cut 9 +2      # slot 9 cut 2 s in (or `cut 9 12.4` = at 12.4 s of the video); the clip runs on
 uv run beatcut.py caption "we coded a saas at the strip club"
 uv run beatcut.py length 20     # rebuilds the edit at 20 s
 uv run beatcut.py render

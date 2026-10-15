@@ -1,9 +1,10 @@
 # How to run a day, start to finish
 
-Two ways to drive this. **The chat** (Claude Code in this folder): say what you want and
-Claude runs the tool, the research and the caption skills. **The buttons** (`uv run ui.py`,
-then open http://127.0.0.1:8765): every pipeline step as a form, no commands to remember.
-Both read and write the same files, so you can mix them.
+Two ways to drive this, and they are the same thing. **The app** (`cd web && npm run dev`,
+then open http://localhost:3000): every step as a button, the clips numbered, the
+storyboard on the page, and Claude in a side panel on every page. **The chat** (Claude
+Code in this folder, or that side panel): say what you want and Claude runs the tool, the
+research and the caption skills. Both read and write the same files, so you can mix them.
 
 ## Once, on a new machine
 

@@ -77,6 +77,19 @@ AI tells and scores it). `/day` calls them. The swipe file goes stale after ~30 
 `/ig-viral` rebuilds it (on TikTok, where view counts are public — see the research
 notes in `research/`).
 
+## 4c. The app (buttons + Claude panel)
+
+```bash
+cd ~/Desktop/beatcut/web
+npm install
+cp .env.example .env.local        # then paste your ANTHROPIC_API_KEY into it
+npm run dev                       # → http://localhost:3000
+```
+
+Node 18+ (`brew install node` from step 1). The key is only for the Claude panel; the
+buttons work without it. Leave `npm run dev` running in a terminal tab while you work.
+`npm run build && npm start` is the no-reload version.
+
 ## 5. Smoke test
 
 ```bash

@@ -78,7 +78,7 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
    (or `--clips-dir clips/dayN`). Read the slot table: opener right? drop on a strong
    moment? no flash-frame slots (<0.6 s) unless intended?
 5. `-p <name> board` → Read `out/_<name>_board.jpg`. One frame per slot. Fix with
-   `set/in/swap/merge/split` before rendering if something's off.
+   `set/in/swap/merge/split/cut` before rendering if something's off.
 6. `-p <name> render`. Then verify mechanically: scene-detect the output and confirm every
    planned cut has a scene change within one frame (snippet in CLAUDE.md); ffprobe shows
    an AAC track. Audio can't be judged in Electron previews (VS Code, the Claude app) —
@@ -228,4 +228,16 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   (every agent re-set most in-points from the sheets); `frames --n 26` on a 1.5 s clip
   sampled past the last frame (clamped now); `split` only cuts on the old beat grid in
   free mode, so one agent hand-wrote the cut list into the project JSON — a `cut <slot>
-  <sec>` command would be the honest fix. Pre-build HDR proxies BEFORE a parallel batch.
+  <sec>` command would be the honest fix (added 2026-10-15: `cut 9 +2` / `cut 9 12.4`). Pre-build HDR proxies BEFORE a parallel batch.
+- **2026-10-15, the app (`web/`).** Christian asked for "a full-fledged app using Next.js,
+  full UI, fully integrated with Claude" → `web/` replaced `ui.py` (deleted). Same shape
+  as before: every button is a `beatcut.py` job; plus the Claude Agent SDK in a side panel
+  with `cwd` = this folder, so it loads this skill, `/day` and the ig-* skills and runs
+  for real. Lessons: with cacheComponents on, Next 16 wants every page static or in
+  Suspense — off, with `force-dynamic` everywhere, since every page is a folder read; the
+  SDK ships its own CLI binary (`@anthropic-ai/claude-agent-sdk-darwin-arm64`), no
+  `claude` on PATH needed; `env` passed to `query()` REPLACES the subprocess env (spread
+  `process.env`); subagent frames carry `parent_tool_use_id` — skip them in the UI. A
+  worktree's `projects/` is the committed set, so `day3_1` there pointed at Ernest's
+  tennis clips, not Christian's gym day: the video page now flags "clips moved or renamed"
+  instead of a broken storyboard button.

@@ -205,7 +205,8 @@ sits in several slots — then read `show` and pick the slot number yourself.
 | "put clip 7 back" | `restore 7` then `set <slot> 7` |
 | "clip 2 should be on the drop" | `hero 2` |
 | "hold that shot longer" / "slot 9 is too short" | `merge 10` (joins slot 10 into 9) |
-| "cut faster there" | `split 9` |
+| "cut faster there" (beat-synced edits) | `split 9` (cuts slot 9 on its middle BEAT — only meaningful with `--sync`) |
+| "cut shot 9 two seconds in" / "add a cut at 12.4" | `cut 9 +2` / `cut 9 12.4` (free cuts: a new cut at that time of the VIDEO, as `show` prints it; `+N` = N s into the slot; the same clip runs on across the cut, then `set`/`in` the new slot) |
 | "start clip 4 later / use the part where …" | `in <slot> <seconds>` or `set <slot> 4 --at <seconds>` |
 | "move the laptop shot to the start" | `move <slot> 1` |
 | "make it 20 seconds" | `length 20` (rebuilds the whole edit) |
@@ -220,7 +221,8 @@ Edits that only touch slots keep every other slot exactly where it was. `length`
 and `density` rebuild the grid AND the clip order (say so when you run them).
 
 A clip shorter than a slot can't go there — the command refuses with the two lengths.
-Options then: `merge`/`split` to change the slot, or pick a longer clip.
+Options then: `merge`/`split`/`cut` to change the slot, or pick a longer clip. `cut` refuses a
+time outside the slot or a half shorter than one frame (1/30 s).
 
 ## Checking a result without watching it
 
@@ -241,22 +243,41 @@ and compare `pts_time`s to `project.json` cuts minus `cuts[0]`.
 - `setup` checks ffmpeg / yt-dlp / the font and installs the headless browser — run it once
   on a new machine (Christian's).
 
-## The buttons: `ui.py` (2026-10-08)
+## The app: `web/` (Next.js, 2026-10-15; replaced the Flask `ui.py`)
 
-`uv run ui.py` → http://127.0.0.1:8765 (or `preview_start beatcut-ui` from Claude; see
-`.claude/launch.json`). A single-file Flask app that shells out to `uv run beatcut.py …`
-for every button and reads the same `projects/*.json` + `out/dayN/` files, so the CLI,
-the chat and the buttons never disagree. Pages: days (clip thumbnails, numbered) → "Cut
-it" form (sound link or an already-downloaded sound, length, preset, opener, story
-order, random, seed, on-screen hook) → a job page that streams the log and opens the
-video page when done → video page (player, storyboard, slot table with the DROP marked,
-every edit command as a form, Render, Open in CapCut, Make variation, the post caption
-saved as `out/dayN/dayN_V.caption.txt`). "Edited since the last render" = the project
-file is newer than the mp4. **Gotcha:** `sound sound/x.mp3` re-imports the file onto
-itself and TRUNCATES it (lost DUNG DING BREGA to 1.4 s once); the UI therefore writes the
-`projects/<name>.sound.json` pointer directly (`link_sound`) for existing sounds. Never
-run `sound` on a path inside `sound/`. `HOWTO.md` (also served at /howto) is the
-step-by-step for a shoot day; `/day N` in the chat is the one-command version.
+`cd web && npm run dev` → http://localhost:3000 (or `preview_start beatcut-web` from Claude;
+see `.claude/launch.json`). A Next.js 16 app (App Router, TypeScript, Tailwind) that is a
+UI over THIS folder: every button runs `uv run beatcut.py …` as a **job** (one beatcut
+process at a time, log streamed over SSE to `/jobs/<id>`, then it opens the result), and
+every page reads the same `projects/*.json`, `out/<folder>/`, `sound/`, `clips/` files the
+CLI writes, so the CLI, the chat and the buttons never disagree. Nothing in `web/` edits
+an edit by hand; the only direct writes are the sound pointer (`projects/<name>.sound.json`,
+same reason as before: `sound sound/x.mp3` TRUNCATES the file), the post caption
+(`out/<folder>/<name>.caption.txt`), the thumbnail cache (`out/<folder>/.thumbs/`) and
+the chat index (`out/.app/chats.json`).
+
+Pages: `/` shoots (every folder under `clips/` with video files, numbered thumbnails,
+pending `projects/<folder>.plan.md` shot lists) · `/shoot/<folder>` (clips, shot list,
+frame sheets, videos from it, the "Cut it" form: sound link or pool, length, preset,
+opener, story/random/auto, seed, hook, `--sync`) · `/video/<name>` (player, storyboard,
+every edit command, Render, Open in CapCut, Make variation, Delete, slot table with DROP,
+post caption, versions) · `/videos` · `/sounds` (the pool, add by link) · `/jobs` ·
+`/howto` (HOWTO.md). API routes live under `web/src/app/api/`; `GET /api/state` dumps
+folders/projects/sounds/health as JSON.
+
+**Claude in the app:** the side panel (bottom-right button on every page) is the **Claude
+Agent SDK** (`@anthropic-ai/claude-agent-sdk`) running the same agent as Claude Code with
+`cwd` = this folder, the `claude_code` system-prompt preset plus a short note about the
+page the user has open (`project:<name>` / `folder:<name>`), all setting sources (so
+CLAUDE.md, `.claude/skills/*` and the ig-* skills in `~/.claude` load) and
+`bypassPermissions` — it runs beatcut for real, nothing is simulated. Needs
+`ANTHROPIC_API_KEY` in `web/.env.local` (pay per token; `BEATCUT_MODEL` overrides the
+model, default `claude-opus-5-5`). Turns stream as NDJSON from `POST /api/chat`
+(`web/src/lib/agent.ts`); the conversation continues through the SDK session id
+(`resume`), so a thread survives a restart; the page next to the panel re-reads the
+folder after every tool call. Chats are listed in the panel's header; "Stop" interrupts.
+When you (Claude Code) and the app both touch a project, the app wins nothing: it is the
+same files.
 
 **`/day` is the loop (2026-10-08):** `/day plan` (idea + shot list from the swipe file,
 rotating formulas via `projects/ideas.md`, saved as `projects/dayN.plan.md`), `/day N`
