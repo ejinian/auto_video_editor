@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "beatcut-ui",
-      "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "ui.py", "8765"],
-      "port": 8765
+      "name": "beatcut-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "web"],
+      "port": 3000
     }
   ]
 }

@@ -121,6 +121,13 @@ New controls that came out of your brief:
 
 ---
 
+### The app (Oct 15)
+- `web/` is a Next.js app that replaces the Flask UI: shoots → cut form → job log → video
+  page with every edit button, storyboard, caption, variations, delete; sounds pool; jobs.
+- Claude lives in a side panel on every page (Claude Agent SDK, same agent as Claude
+  Code, same skills), so "swap 3 and 8" or "/day plan" works from the browser too.
+- `cd web && npm run dev`, key in `web/.env.local`. Details in `CLAUDE.md`.
+
 ## Next up: Day 4 (planned for today, Oct 9)
 **Idea:** "AI is about to replace me", played completely deadpan. It's the same shape
 as @iansbrash's two biggest posts (1.3M and 322k views).

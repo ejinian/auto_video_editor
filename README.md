@@ -12,6 +12,10 @@ long take + trolley / Apple store / Grove bushes, four videos on four TikTok sou
 cut entirely this way. `CLAUDE.md` is the full command reference and every gotcha we hit;
 `.claude/skills/beatcut/SKILL.md` is the workflow Claude follows plus a lessons log.
 
+**The app:** `cd web && npm install && npm run dev` → http://localhost:3000. Every button
+runs the commands below; the Claude panel on each page runs the same agent as Claude Code
+inside this folder (needs `ANTHROPIC_API_KEY` in `web/.env.local`). See `HOWTO.md`.
+
 **New machine? Follow [SETUP.md](SETUP.md)** — tools, CapCut, permissions, smoke test,
 troubleshooting. Hand it to your own Claude Code session and say "set this up".
 
