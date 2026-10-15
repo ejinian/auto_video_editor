@@ -205,7 +205,8 @@ sits in several slots — then read `show` and pick the slot number yourself.
 | "put clip 7 back" | `restore 7` then `set <slot> 7` |
 | "clip 2 should be on the drop" | `hero 2` |
 | "hold that shot longer" / "slot 9 is too short" | `merge 10` (joins slot 10 into 9) |
-| "cut faster there" | `split 9` |
+| "cut faster there" (beat-synced edits) | `split 9` (cuts slot 9 on its middle BEAT — only meaningful with `--sync`) |
+| "cut shot 9 two seconds in" / "add a cut at 12.4" | `cut 9 +2` / `cut 9 12.4` (free cuts: a new cut at that time of the VIDEO, as `show` prints it; `+N` = N s into the slot; the same clip runs on across the cut, then `set`/`in` the new slot) |
 | "start clip 4 later / use the part where …" | `in <slot> <seconds>` or `set <slot> 4 --at <seconds>` |
 | "move the laptop shot to the start" | `move <slot> 1` |
 | "make it 20 seconds" | `length 20` (rebuilds the whole edit) |
@@ -220,7 +221,8 @@ Edits that only touch slots keep every other slot exactly where it was. `length`
 and `density` rebuild the grid AND the clip order (say so when you run them).
 
 A clip shorter than a slot can't go there — the command refuses with the two lengths.
-Options then: `merge`/`split` to change the slot, or pick a longer clip.
+Options then: `merge`/`split`/`cut` to change the slot, or pick a longer clip. `cut` refuses a
+time outside the slot or a half shorter than one frame (1/30 s).
 
 ## Checking a result without watching it
 
