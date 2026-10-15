@@ -6,6 +6,7 @@ import { ChevronDown, Loader2, MessageSquare, Plus, Send, Square, Trash2, X } fr
 import { Markdown } from "@/components/Markdown";
 import type { ChatEvent } from "@/lib/agent";
 import type { ChatThread } from "@/lib/chats";
+import type { HistoryTurn } from "@/lib/history";
 
 type Part =
   | { kind: "text"; text: string }
@@ -65,23 +66,52 @@ export function ChatPanel() {
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const historyFor = useRef<string | null>(null);
+
+  /** Replace the turns with everything said so far in thread `id` (read back from the
+   *  SDK's transcript). A later pick cancels the display of an earlier fetch. */
+  const loadHistory = useCallback((id: string) => {
+    historyFor.current = id;
+    setTurns([{ role: "assistant", parts: [{ kind: "status", text: "loading earlier messages…" }] }]);
+    fetch(`/api/chat/threads/${id}/messages`)
+      .then(async (r) => {
+        const j = (await r.json()) as HistoryTurn[] | { error?: string };
+        if (!r.ok || !Array.isArray(j)) throw new Error((j as { error?: string }).error ?? `history failed (${r.status})`);
+        return j;
+      })
+      .then((history) => {
+        if (historyFor.current !== id) return;
+        setTurns(history.length ? history : [{ role: "assistant", parts: [{ kind: "status", text: "nothing said in this chat yet." }] }]);
+      })
+      .catch((e: unknown) => {
+        if (historyFor.current !== id) return;
+        setTurns([{ role: "assistant", parts: [{ kind: "status", text: `couldn't load earlier messages: ${e instanceof Error ? e.message : String(e)}` }] }]);
+      });
+  }, []);
 
   // remembered open state and thread: read after mount so the server and client
-  // render the same closed panel first (no hydration mismatch)
+  // render the same closed panel first (no hydration mismatch). They are written back
+  // where they change (openPanel / switchThread), not in an effect: an effect would store
+  // the initial closed state first and, under React's strict-mode double run, read
+  // that back and lose what was remembered.
   useEffect(() => {
     try {
       const wasOpen = localStorage.getItem(OPEN_KEY) === "1";
       const t = localStorage.getItem(THREAD_KEY);
       // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable on the client
       setOpen(wasOpen);
-      if (t) setSessionId(t);
+      if (t) { setSessionId(t); loadHistory(t); }
     } catch { /* private window */ }
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem(OPEN_KEY, open ? "1" : "0"); } catch { /* none */ }
-    document.documentElement.classList.toggle("chat-open", open);
-  }, [open]);
-  useEffect(() => { try { if (sessionId) localStorage.setItem(THREAD_KEY, sessionId); else localStorage.removeItem(THREAD_KEY); } catch { /* none */ } }, [sessionId]);
+  }, [loadHistory]);
+  useEffect(() => { document.documentElement.classList.toggle("chat-open", open); }, [open]);
+  const openPanel = (v: boolean) => {
+    setOpen(v);
+    try { localStorage.setItem(OPEN_KEY, v ? "1" : "0"); } catch { /* none */ }
+  };
+  const switchThread = (id: string | null) => {
+    setSessionId(id);
+    try { if (id) localStorage.setItem(THREAD_KEY, id); else localStorage.removeItem(THREAD_KEY); } catch { /* none */ }
+  };
 
   const loadThreads = useCallback(() => {
     fetch("/api/chat/threads").then((r) => r.json()).then((j: ChatThread[]) => setThreads(j)).catch(() => undefined);
@@ -99,7 +129,8 @@ export function ChatPanel() {
   }, [turns, running]);
 
   const newThread = () => {
-    setSessionId(null);
+    historyFor.current = null;
+    switchThread(null);
     setTurns([]);
     setError(null);
     setShowThreads(false);
@@ -107,8 +138,10 @@ export function ChatPanel() {
   };
 
   const pickThread = (t: ChatThread) => {
-    setSessionId(t.id);
-    setTurns([{ role: "assistant", parts: [{ kind: "status", text: `Continuing "${t.title}" (${t.turns} turns so far). Earlier messages stay in the session; new ones show here.` }] }]);
+    if (running) return;
+    switchThread(t.id);
+    setError(null);
+    loadHistory(t.id);
     setShowThreads(false);
   };
 
@@ -158,7 +191,7 @@ export function ChatPanel() {
           const ev = JSON.parse(line) as ChatEvent;
           switch (ev.t) {
             case "init":
-              if (!sid) { sid = ev.sessionId; setSessionId(ev.sessionId); }
+              if (!sid) { sid = ev.sessionId; switchThread(ev.sessionId); }
               setModel(ev.model);
               break;
             case "text":
@@ -208,7 +241,7 @@ export function ChatPanel() {
 
   if (!open) {
     return (
-      <button className="btn fixed bottom-5 right-5 z-40 shadow-lg" onClick={() => setOpen(true)} title="Talk to Claude about this page">
+      <button className="btn fixed bottom-5 right-5 z-40 shadow-lg" onClick={() => openPanel(true)} title="Talk to Claude about this page">
         <MessageSquare size={16} /> Claude
       </button>
     );
@@ -240,7 +273,7 @@ export function ChatPanel() {
           )}
         </div>
         <button className="btn sec sm" onClick={newThread} title="New chat"><Plus size={14} /></button>
-        <button className="btn sec sm" onClick={() => setOpen(false)} title="Hide"><X size={14} /></button>
+        <button className="btn sec sm" onClick={() => openPanel(false)} title="Hide"><X size={14} /></button>
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-auto px-3 py-3 space-y-3">
