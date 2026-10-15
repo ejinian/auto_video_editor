@@ -29,6 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ name: s
     case "set": if (num(a.slot) && num(a.clip)) argv = ["set", num(a.slot), num(a.clip), ...(num(a.at) ? ["--at", num(a.at)] : [])]; break;
     case "in": if (num(a.slot) && num(a.sec)) argv = ["in", num(a.slot), num(a.sec)]; break;
     case "merge": case "split": if (num(a.slot)) argv = [b.cmd, num(a.slot)]; break;
+    case "cut": if (num(a.slot) && num(a.sec)) argv = ["cut", num(a.slot), num(a.sec)]; break;
     case "drop": case "restore": case "hero": if (num(a.clip)) argv = [b.cmd, ...num(a.clip).split(/[\s,]+/).filter(Boolean)]; break;
     case "shuffle": argv = ["shuffle", ...(num(a.seed) ? ["--seed", num(a.seed)] : [])]; break;
     case "caption": argv = ["caption", num(a.text) || "none"]; break;

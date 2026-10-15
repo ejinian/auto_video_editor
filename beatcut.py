@@ -1253,6 +1253,38 @@ def cmd_split(args) -> None:
     finish(project, clips, f"split slot {i + 1} at {mid - project['cuts'][0]:.2f}s — slot {i + 2} shows clip {rep['id']}")
 
 
+def cmd_cut(args) -> None:
+    """Split a slot at a time of the VIDEO (seconds from its start, as `show` prints them), or
+    `+N` = N seconds into the slot. Not on a beat: this is the free-cut counterpart of `split`.
+    The same clip runs on across the new cut — the second half continues where the first ends,
+    so the picture is unchanged until you `set`/`in` the new slot."""
+    project, clips = load_project(), scan_clips()
+    i = parse_ref(args.slot, project, "slot")
+    cuts, t0 = project["cuts"], project["cuts"][0]
+    a, b = cuts[i], cuts[i + 1]
+    tok = str(args.seconds).strip()
+    try:
+        t = float(tok)
+    except ValueError:
+        die(f"'{tok}' is not a time — give seconds into the video (e.g. 12.4) or into the slot (e.g. +2)")
+    at = a + t if tok.startswith("+") else t0 + t
+    where = f"slot {i + 1} runs {a - t0:.2f}-{b - t0:.2f}s of the video ({b - a:.2f}s)"
+    if not a < at < b:
+        die(f"{at - t0:.2f}s is outside it — {where}; a time inside it, or `cut {i + 1} +<seconds into the slot>`")
+    # render rounds every cut to a frame, so check the halves the way render will see them
+    f = lambda x: round((x - t0) * FPS)
+    if f(at) - f(a) < 1 or f(b) - f(at) < 1:
+        die(f"too close to the edge — {where}; each half needs at least one frame ({1 / FPS:.3f}s)")
+    s = project["slots"][i]
+    cuts.insert(i + 1, round(at, 4))
+    project["slots"].insert(i + 1, {**s, "in": round(s["in"] + (at - a), 3)})
+    finish(
+        project, clips,
+        f"cut slot {i + 1} at {at - t0:.2f}s — slots {i + 1} ({a - t0:.2f}-{at - t0:.2f}) and {i + 2} ({at - t0:.2f}-{b - t0:.2f}) "
+        f"both show clip {s['clip']}, the footage running on; `set {i + 2} <clip>` or `in {i + 2} <s>` changes the second half",
+    )
+
+
 def cmd_caption(args) -> None:
     project, clips = load_project(), scan_clips()
     text = " ".join(args.text).strip()
@@ -1626,6 +1658,8 @@ def main() -> None:
     s.add_argument("slot"); s.set_defaults(fn=cmd_merge)
     s = sub.add_parser("split", help="cut a slot in two on its middle beat")
     s.add_argument("slot"); s.set_defaults(fn=cmd_split)
+    s = sub.add_parser("cut", help="split a slot at a time of the video (seconds from its start, as `show` prints; +N = N s into the slot); the clip runs on across the cut")
+    s.add_argument("slot"); s.add_argument("seconds"); s.set_defaults(fn=cmd_cut)
     s = sub.add_parser("caption", help="burn a hook caption into the video (`caption none` clears)")
     s.add_argument("text", nargs="*"); s.set_defaults(fn=cmd_caption)
     s = sub.add_parser("shuffle", help="same cuts, re-randomize which clip is in each")
