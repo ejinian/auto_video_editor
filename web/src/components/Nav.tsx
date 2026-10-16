@@ -1,30 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Activity, BookOpen, Clapperboard, Music, Plus, Scissors, Video } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/", label: "Shoots" },
-  { href: "/videos", label: "Videos" },
-  { href: "/sounds", label: "Sounds" },
-  { href: "/jobs", label: "Jobs" },
-  { href: "/howto", label: "How to" },
+  { href: "/", label: "Shoots", Icon: Clapperboard },
+  { href: "/videos", label: "Videos", Icon: Video },
+  { href: "/sounds", label: "Sounds", Icon: Music },
+  { href: "/jobs", label: "Jobs", Icon: Activity },
+  { href: "/howto", label: "How to", Icon: BookOpen },
 ];
 
+/** The sidebar: brand, the one primary action, the sections. */
 export function Nav() {
   const path = usePathname();
   return (
-    <nav className="flex items-center gap-5 px-4 py-2.5 border-b border-line bg-card sticky top-0 z-30">
-      <Link href="/" className="font-bold tracking-wide text-fg no-underline hover:no-underline">beatcut</Link>
-      {LINKS.map((l) => {
-        const active = l.href === "/" ? path === "/" || path.startsWith("/shoot") : path.startsWith(l.href) || (l.href === "/videos" && path.startsWith("/video/"));
+    <nav className="sb" aria-label="main">
+      <Link href="/" className="brand"><span className="mark"><Scissors size={14} strokeWidth={2.5} /></span><span>beatcut</span></Link>
+      <Link href="/new" className={`btn new ${path === "/new" ? "" : ""}`}><Plus size={16} /><span>New video</span></Link>
+      {LINKS.map(({ href, label, Icon }) => {
+        const active = href === "/" ? path === "/" || path.startsWith("/shoot") : path.startsWith(href) || (href === "/videos" && path.startsWith("/video/"));
         return (
-          <Link key={l.href} href={l.href} className={`text-sm no-underline hover:text-fg hover:no-underline ${active ? "text-fg" : "text-muted"}`}>{l.label}</Link>
+          <Link key={href} href={href} className={`item ${active ? "on" : ""}`} title={label}><Icon size={17} strokeWidth={1.9} /><span>{label}</span></Link>
         );
       })}
-      <Link href="/new" className={`btn sm ml-auto no-underline hover:no-underline ${path === "/new" ? "" : "sec"}`}><Plus size={14} /> New video</Link>
-      <span className="text-[11.5px] text-muted hidden md:inline">Young Vibas · one post a day</span>
+      <div className="foot">Young Vibas<br />one post a day</div>
     </nav>
   );
 }

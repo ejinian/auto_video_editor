@@ -13,7 +13,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en">
       <body className="min-h-screen">
         <Nav />
-        <main className="max-w-[1180px] mx-auto px-4 pt-4 pb-24">{children}</main>
+        <main>{children}</main>
         <ChatPanel />
       </body>
     </html>

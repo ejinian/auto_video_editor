@@ -10,7 +10,7 @@ export default function Jobs() {
   return (
     <div>
       <h1>Jobs</h1>
-      <p className="text-muted text-sm -mt-1 mb-3">Every button runs <code>uv run beatcut.py …</code> as a job, one at a time, and keeps the log here until the app restarts.</p>
+      <p className="lede">Every button runs <code>uv run beatcut.py …</code> as a job, one at a time, and keeps the log here until the app restarts.</p>
       <div className="card !p-0 overflow-hidden">
         <table className="t">
           <thead><tr><th>job</th><th>commands</th><th>started</th><th></th></tr></thead>

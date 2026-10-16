@@ -33,17 +33,16 @@ export default async function Shoot({ params }: { params: Promise<{ folder: stri
         <Tag>{clips.length} clips · {mmss(clips.reduce((a, c) => a + c.duration, 0))}</Tag>
         {clips.some((c) => c.hdr) && <Tag kind="warn" title="HDR clips get an Apple-tone-mapped SDR proxy at render time, automatically">HDR</Tag>}
       </h1>
-      {clips.length > 0 && (
-        <div className="card mb-4 flex flex-wrap items-center gap-4 border-acc/40">
-          <Link href={`/new?folder=${encodeURIComponent(folder)}`} className="btn !text-base !px-5 !py-3 no-underline hover:no-underline"><Plus size={18} /> New video from these clips</Link>
-          <div className="text-sm text-muted">Pick a sound, then length, pace, opener and order. Or open the Claude panel and say what you want (&ldquo;cut two variations, opener 3, story 3,1,5&rdquo;); it runs the same commands and checks the storyboard.</div>
-        </div>
-      )}
-      <p className="text-muted text-sm -mt-1 mb-3">
-        Clips live in <code>clips/{folder}/</code>. Their numbers are what the edit buttons and Claude use (&ldquo;clip 3&rdquo;). Adding or renaming files renumbers them.
-        {" "}<Link href={`/new?folder=${encodeURIComponent(folder)}`}>Add clips</Link> ·{" "}
-        <FramesButton folder={folder} label={sheets.length ? "Redo frame sheets" : "Make frame sheets"} />
-      </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <p className="lede flex-1 min-w-[280px]">
+          Clips live in <code>clips/{folder}/</code>. Their numbers are what the edit buttons and Claude use (&ldquo;clip 3&rdquo;); adding or renaming files renumbers them.
+          {" "}<Link href={`/new?folder=${encodeURIComponent(folder)}`}>Add clips</Link> ·{" "}
+          <FramesButton folder={folder} label={sheets.length ? "Redo frame sheets" : "Make frame sheets"} />
+        </p>
+        {clips.length > 0 && (
+          <Link href={`/new?folder=${encodeURIComponent(folder)}`} className="btn lg no-underline hover:no-underline" title="pick a sound, then length, pace, opener and order — or ask the Claude panel"><Plus size={18} /> New video from these clips</Link>
+        )}
+      </div>
 
       {clips.length > 0 ? <ClipGrid clips={clips} /> : <div className="card">No clips in <code>clips/{folder}/</code> yet. <Link href="/new">New video</Link> with this folder name drops them in.</div>}
 

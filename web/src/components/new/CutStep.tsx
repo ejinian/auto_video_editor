@@ -101,12 +101,12 @@ export function CutStep({ folder, clips, sound, nextName, onBack }: {
         </details>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 mt-5">
-        <button type="button" className="btn sec" onClick={onBack} disabled={busy}>← Sound</button>
-        <button className="btn" disabled={busy}>Cut it</button>
-        <span className="text-muted text-sm">
+      <div className="stepbar flex-wrap">
+        <button type="button" className="btn ghost" onClick={onBack} disabled={busy}>← Sound</button>
+        <span className="status">
           <b className="text-fg">{name}</b> · {len} s · {preset} · {mode} · {sound.title} · {clips.length} clips{maxClip ? ` (longest ${maxClip.toFixed(0)} s)` : ""}. Plans, builds the storyboard{render ? " and renders: about 1–2 minutes, then the video page opens." : "."}
         </span>
+        <button className="btn lg" disabled={busy}>Cut it</button>
       </div>
       {error && <div className="text-bad text-sm mt-2">{error}</div>}
     </form>
