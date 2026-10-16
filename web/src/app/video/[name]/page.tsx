@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CaptionEditor } from "@/components/CaptionEditor";
 import { ClipGrid } from "@/components/ClipGrid";
-import { EditPanel } from "@/components/EditPanel";
+import { AllCommands, EditToolbar } from "@/components/EditPanel";
 import { StatusTag, Tag } from "@/components/Tag";
+import { VideoEditor } from "@/components/VideoEditor";
 import { projectDetail, sounds } from "@/lib/beatcut";
 import { ago, mb, mediaUrl } from "@/lib/format";
 
@@ -41,30 +42,7 @@ export default async function Video({ params }: { params: Promise<{ name: string
         {d.folder && <> · shoot <Link href={`/shoot/${encodeURIComponent(d.folder)}`}>{d.folder}</Link></>}
       </p>
 
-      <div className="grid gap-5" style={{ gridTemplateColumns: "minmax(260px, 340px) 1fr" }}>
-        <div>
-          {d.mp4 ? (
-            <video controls playsInline src={mediaUrl(d.mp4)} className="w-full rounded-xl bg-black" style={{ maxHeight: "70vh" }} />
-          ) : (
-            <div className="card text-muted aspect-[9/16] flex items-center justify-center">not rendered yet — press Render</div>
-          )}
-          {d.mp4 && (
-            <div className="text-xs text-muted mt-2 space-y-0.5">
-              <div><code>~/Desktop/beatcut/{d.inFinal ? `final/${name}.mp4` : d.mp4}</code> · {mb(d.mp4Size)}{!d.inFinal && " · draft, not in final/"}</div>
-              <div><a href={mediaUrl(d.inFinal ? `final/${name}.mp4` : d.mp4, true)}>download</a></div>
-            </div>
-          )}
-        </div>
-        <div>
-          {d.board ? (
-            <a href={mediaUrl(d.board)} target="_blank" rel="noreferrer">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={`${mediaUrl(d.board)}?v=${d.boardMtime}`} alt="storyboard" className="w-full rounded-xl" />
-            </a>
-          ) : <div className="card text-muted">no storyboard yet</div>}
-          <div className="text-muted text-xs mt-1">Storyboard: one frame per shot, labelled slot · clip · length. The way to check a cut without playing it.</div>
-        </div>
-      </div>
+      <EditToolbar d={d} sounds={snds} />
 
       {missing.length > 0 && (
         <div className="card border-bad/60 mt-4 text-sm">
@@ -73,25 +51,21 @@ export default async function Video({ params }: { params: Promise<{ name: string
       )}
 
       <h2>Edit</h2>
-      <EditPanel d={d} sounds={snds} />
+      <VideoEditor d={d} />
 
-      <h2>Shots</h2>
-      <div className="card !p-0 overflow-hidden">
-        <table className="t">
-          <thead><tr><th>slot</th><th>time (s)</th><th>dur</th><th>clip</th><th>in at</th><th></th></tr></thead>
-          <tbody>
-            {d.slots.map((r) => (
-              <tr key={r.n} className={r.drop ? "drop" : ""}>
-                <td>{r.n}</td>
-                <td>{r.t0.toFixed(2)}–{r.t1.toFixed(2)}</td>
-                <td>{r.dur.toFixed(2)}</td>
-                <td><b>{r.clip}</b> <span className="text-muted">{r.file}</span></td>
-                <td>{r.in.toFixed(1)}</td>
-                <td className="text-muted text-xs">{[r.drop ? "DROP" : "", r.hero ? "hero" : "", r.uses > 1 ? `clip used ×${r.uses}` : ""].filter(Boolean).join(" · ")}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mt-4 space-y-3">
+        <details className="card !p-0 overflow-hidden">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold select-none">Storyboard <span className="text-muted font-normal">— one frame per shot, labelled slot · clip · length (what Claude reads)</span></summary>
+          <div className="px-4 pb-4">
+            {d.board ? (
+              <a href={mediaUrl(d.board)} target="_blank" rel="noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`${mediaUrl(d.board)}?v=${d.boardMtime}`} alt="storyboard" className="w-full rounded-xl" />
+              </a>
+            ) : <div className="text-muted text-sm">no storyboard yet — press Storyboard</div>}
+          </div>
+        </details>
+        <AllCommands d={d} />
       </div>
 
       <h2>Caption for the post</h2>

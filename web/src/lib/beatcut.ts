@@ -255,6 +255,79 @@ export async function thumb(folder: string, stem: string): Promise<string | null
   return job;
 }
 
+
+/** Where a clip is read from for frames: the SDR proxy beatcut.py tone-mapped for an HDR
+ *  clip (clips/<folder>/.sdr/<stem>.mov) when it exists, so colours match the render. */
+export function frameSource(clipRel: string, hdr: boolean): string {
+  const full = path.join(ROOT, clipRel);
+  if (!hdr) return full;
+  const proxy = path.join(path.dirname(full), ".sdr", `${path.parse(full).name}.mov`);
+  return exists(proxy) ? proxy : full;
+}
+
+const frameInflight = new Map<string, Promise<string | null>>();
+
+/** One 360px-tall frame of `src` at `t` seconds into `dest`, deduplicated while it runs. */
+async function extractFrame(src: string, t: number, dest: string): Promise<string | null> {
+  if (exists(dest)) return dest;
+  const running = frameInflight.get(dest);
+  if (running) return running;
+  const job = (async () => {
+    await fsp.mkdir(path.dirname(dest), { recursive: true });
+    const tmp = `${dest}.${process.pid}.tmp.jpg`;
+    try {
+      await execFileP("ffmpeg", ["-v", "error", "-y", "-ss", Math.max(0, t).toFixed(3), "-i", src, "-frames:v", "1", "-vf", "scale=-2:360", tmp]);
+      await fsp.rename(tmp, dest);
+      return dest;
+    } catch {
+      try { await fsp.unlink(tmp); } catch { /* none */ }
+      return null;
+    } finally {
+      frameInflight.delete(dest);
+    }
+  })();
+  frameInflight.set(dest, job);
+  return job;
+}
+
+/**
+ * The frame the timeline shows for slot `n` (1-based) of a project: the clip at its
+ * in-point plus half the slot's length, i.e. the same frame `board` picks. Cached in
+ * out/<folder>/.slots/ under a name that holds the clip, in-point and length, so any
+ * edit of the slot produces a new file (older files for the same slot are removed).
+ */
+export async function slotThumb(name: string, n: number): Promise<string | null> {
+  const pr = loadProject(name);
+  if (!pr || n < 1 || n > pr.slots.length) return null;
+  const s = pr.slots[n - 1];
+  const dur = pr.cuts[n] - pr.cuts[n - 1];
+  const clipRel = pr.clips[s.clip - 1];
+  if (!clipRel || !exists(path.join(ROOT, clipRel))) return null;
+  const dir = path.join(projectOut(name), ".slots");
+  const dest = path.join(dir, `${name}.s${n}.c${s.clip}.${s.in.toFixed(3)}.${dur.toFixed(3)}.jpg`);
+  if (exists(dest)) return dest;
+  const hdr = (await probe(path.join(ROOT, clipRel))).hdr;
+  const got = await extractFrame(frameSource(clipRel, hdr), s.in + dur / 2, dest);
+  if (got) {
+    const prefix = `${name}.s${n}.`;
+    for (const f of fs.readdirSync(dir)) {
+      if (f.startsWith(prefix) && f.endsWith(".jpg") && path.join(dir, f) !== dest) { try { fs.rmSync(path.join(dir, f)); } catch { /* cache */ } }
+    }
+  }
+  return got;
+}
+
+/** A frame of a clip at `t` seconds (rounded to 0.1 s), for scrubbing an in-point.
+ *  Cached in out/<folder>/.frames/ next to the thumbnails. */
+export async function clipFrame(folder: string, stem: string, t: number): Promise<string | null> {
+  const clips = await folderClips(folder);
+  const clip = clips.find((c) => c.stem === stem);
+  if (!clip) return null;
+  const tq = Math.max(0, Math.min(Math.round(t * 10) / 10, Math.max(0, clip.duration - 0.1)));
+  const dest = path.join(OUT, folder, ".frames", `${stem}.${tq.toFixed(1)}.jpg`);
+  return extractFrame(frameSource(clip.path, clip.hdr), tq, dest);
+}
+
 // ------------------------------------------------------------------- sounds
 
 function soundMeta(mp3: string): SoundMeta {

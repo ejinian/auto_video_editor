@@ -15,6 +15,9 @@ npm run dev                  # http://localhost:3000
 - `src/lib/jobs.ts` — runs `uv run beatcut.py …` one job at a time, streams the log.
 - `src/lib/agent.ts` — the chat: `query()` from the Agent SDK, NDJSON events to the panel.
 - `src/app/api/*` — route handlers the pages and the panel call.
+- `src/components/VideoEditor.tsx`, `Timeline.tsx`, `SlotCard.tsx` — the video page's
+  editor: tiles per slot under the player (drag = `move`/`swap`), a side card whose
+  buttons are the edit commands, frames from `/api/slot-thumb` and `/api/clip-frame`.
 
 Everything the app changes goes through the CLI, so the CLI, Claude Code and the app
 never disagree about an edit.

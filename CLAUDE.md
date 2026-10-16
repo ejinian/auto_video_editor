@@ -260,11 +260,10 @@ Pages: `/` shoots (the **New video** button on top, then every folder under `cli
 video files, numbered thumbnails, pending `projects/<folder>.plan.md` shot lists) ·
 `/new` (the guided flow, below) · `/shoot/<folder>` (clips, shot list, frame sheets,
 videos from it, and "New video from these clips" on top, which is `/new?folder=<folder>`
-= the flow at its sound step) · `/video/<name>` (player, storyboard, every edit command,
-Render, Open in CapCut, Make variation, Delete, slot table with DROP, post caption,
-versions) · `/videos` · `/sounds` (the pool, add by link) · `/jobs` · `/howto` (HOWTO.md).
-API routes live under `web/src/app/api/`; `GET /api/state` dumps folders/projects/sounds/
-health as JSON.
+= the flow at its sound step) · `/video/<name>` (toolbar, player + **timeline**,
+storyboard and "All commands" collapsed, post caption, versions) · `/videos` · `/sounds`
+(the pool, add by link) · `/jobs` · `/howto` (HOWTO.md). API routes live under
+`web/src/app/api/`; `GET /api/state` dumps folders/projects/sounds/health as JSON.
 
 **Starting a video = `/new`, three steps (2026-10-15; the old "Cut it" form at the bottom
 of the shoot page is gone):**
@@ -285,6 +284,26 @@ of the shoot page is gone):**
    Story vs Random as two cards, the rest (video name, story order, seed, hook, `--sync`,
    render now) under "More options". "Cut it" posts to the same `POST /api/cut` as before
    → `/jobs/<id>` → the video page. No second way to run the CLI was added.
+
+**The timeline (2026-10-15) is how an edit is made in the app.** Under the player, one
+tile per slot (width ∝ length, min 44 px), showing the slot number, clip number, length,
+`DROP` and `★ hero`; a playhead follows the `<video>` and the current tile lights up;
+clicking a tile seeks to it; ← → move the selection, space plays/pauses. Dragging a tile
+to the EDGE of another runs `move`, dropping it ON another runs `swap`. The side card
+for the selected shot runs `set` (clip grid), `in` (a scrubber that previews the frame
+and commits on release), `merge <slot+1>` ("Hold longer"), `cut <slot> <playhead>`
+("Cut here", when the playhead is inside the shot), `split` ("Cut in half"), `drop`
+and `hero`. Nothing asks for confirmation — the next action undoes the last and every
+render is versioned. Every action is the same `POST /api/projects/<name>/run` job the
+forms use (the job log shows the exact command), so the CLI stays the only writer. The
+tile frames come from `GET /api/slot-thumb/<name>/<slot>` (clip at in-point + half the
+slot, i.e. the `board` frame; HDR clips read their `.sdr/` proxy when it exists), cached
+in `out/<folder>/.slots/` under a name holding clip, in-point and length, so an edit
+invalidates it; the scrubber preview is `GET /api/clip-frame/<folder>/<stem>?t=`, cached
+in `out/<folder>/.frames/`. The number-keyed forms and the slot table live on under
+"All commands" at the bottom of the page. Components: `VideoEditor` (player + card +
+keyboard), `Timeline` (tiles, playhead, drag), `SlotCard`, `EditPanel` (`EditToolbar`
++ `AllCommands`).
 
 **Claude in the app:** the side panel (bottom-right button on every page) is the **Claude
 Agent SDK** (`@anthropic-ai/claude-agent-sdk`) running the same agent as Claude Code with
