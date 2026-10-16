@@ -1,5 +1,6 @@
 "use client";
 
+import { Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { thumbUrl } from "@/lib/format";
 import type { ClipInfo, FolderInfo } from "@/lib/types";
@@ -76,54 +77,52 @@ export function ClipsStep({ defaultName, folders, folder, clips, onFolder, onNex
   return (
     <div>
       <div className="card">
-        <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(220px, 1fr) 2fr" }}>
-          <div>
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-2 mb-4">
+          <div className="min-w-[220px]">
             <label className="label !mt-0" htmlFor="new-folder">Folder name</label>
             <input id="new-folder" className="input font-mono" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
-            <div className="text-muted text-xs mt-1">The clips go to <code>clips/{target || "…"}/</code>. Videos from it are named <code>{target || "…"}_1</code>, <code>_2</code>…</div>
-            {folders.length > 0 && (
-              <>
-                <label className="label">…or use a folder that is already there</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {folders.map((f) => (
-                    <button key={f.name} type="button" className={`tag !cursor-pointer hover:border-acc hover:text-fg ${f.name === folder ? "ok" : ""}`} onClick={() => pickExisting(f.name)} disabled={busy}>
-                      {f.name} · {f.clipCount}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
-          <div>
-            <div
-              className={`drop ${over ? "over" : ""}`}
-              onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-              onDragLeave={() => setOver(false)}
-              onDrop={(e) => { e.preventDefault(); setOver(false); addFiles(e.dataTransfer.files); }}
-              onClick={() => fileRef.current?.click()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileRef.current?.click(); }}
-              data-testid="dropzone"
-            >
-              <div className="text-base font-semibold text-fg">Drop the phone clips here</div>
-              <div className="text-sm mt-1">.mov, .mp4 or .m4v · or click to choose · AirDrop lands them in Downloads, drag them from there</div>
-              <input ref={fileRef} type="file" accept=".mov,.mp4,.m4v,video/*" multiple className="hidden" onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+          <div className="text-muted text-xs pb-2 flex-1 min-w-[200px]">The clips go to <code>clips/{target || "…"}/</code>; videos from it are named <code>{target || "…"}_1</code>, <code>_2</code>…</div>
+          {folders.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pb-1">
+              <span className="text-muted text-xs mr-1">or an existing folder:</span>
+              {folders.map((f) => (
+                <button key={f.name} type="button" className={`tag !cursor-pointer hover:border-acc hover:text-fg ${f.name === folder ? "ok" : ""}`} onClick={() => pickExisting(f.name)} disabled={busy}>
+                  {f.name} · {f.clipCount}
+                </button>
+              ))}
             </div>
-            {uploads.length > 0 && (
-              <div className="mt-2 space-y-1 text-xs">
-                {uploads.map((u) => (
-                  <div key={u.name} className="flex items-center gap-2">
-                    <span className="font-mono truncate min-w-0 flex-1">{u.name}</span>
-                    {u.error ? <span className="text-bad">{u.error}</span>
-                      : u.pct < 100 ? <span className="text-muted w-28"><span className="inline-block h-1.5 rounded bg-acc align-middle" style={{ width: `${u.pct}%` }} /> {u.pct}%</span>
-                      : <span className="text-acc">saved</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
         </div>
+        <div
+          className={`drop ${over ? "over" : ""}`}
+          onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => { e.preventDefault(); setOver(false); addFiles(e.dataTransfer.files); }}
+          onClick={() => fileRef.current?.click()}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileRef.current?.click(); }}
+          data-testid="dropzone"
+        >
+          <span className="ic"><Upload size={22} /></span>
+          <div className="text-[15px] font-semibold text-fg">Drop the phone clips here</div>
+          <div className="text-[13px]">.mov, .mp4 or .m4v · AirDrop puts them in Downloads, drag them from there</div>
+          <span className="btn sec sm mt-3 pointer-events-none">Choose files</span>
+          <input ref={fileRef} type="file" accept=".mov,.mp4,.m4v,video/*" multiple className="hidden" onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+        </div>
+        {uploads.length > 0 && (
+          <div className="mt-3 space-y-1 text-xs">
+            {uploads.map((u) => (
+              <div key={u.name} className="flex items-center gap-2">
+                <span className="font-mono truncate min-w-0 flex-1">{u.name}</span>
+                {u.error ? <span className="text-bad">{u.error}</span>
+                  : u.pct < 100 ? <span className="text-muted w-28"><span className="inline-block h-1.5 rounded bg-acc align-middle" style={{ width: `${u.pct}%` }} /> {u.pct}%</span>
+                  : <span className="text-acc">saved</span>}
+              </div>
+            ))}
+          </div>
+        )}
         {error && <div className="text-bad text-sm mt-3">{error}</div>}
       </div>
 
@@ -144,9 +143,9 @@ export function ClipsStep({ defaultName, folders, folder, clips, onFolder, onNex
         </div>
       )}
 
-      <div className="flex items-center gap-3 mt-5">
-        <button type="button" className="btn" disabled={!folder || clips.length === 0 || busy} onClick={onNext}>Next: pick a sound →</button>
-        <span className="text-muted text-sm">{busy ? "uploading…" : clips.length ? `${clips.length} clips ready` : "add at least one clip"}</span>
+      <div className="stepbar">
+        <span className="status">{busy ? "uploading…" : clips.length ? `${clips.length} clips ready` : "add at least one clip"}</span>
+        <button type="button" className="btn lg" disabled={!folder || clips.length === 0 || busy} onClick={onNext}>Next: pick a sound →</button>
       </div>
     </div>
   );

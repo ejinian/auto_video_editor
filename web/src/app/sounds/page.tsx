@@ -10,7 +10,7 @@ export default async function Sounds() {
   return (
     <div>
       <h1>Sounds</h1>
-      <p className="text-muted text-sm -mt-1 mb-3">The pool in <code>sound/</code>. Pick from it when cutting, or ask Claude to find this week&apos;s trending sounds for a bit. Never re-import a file that is already here (it truncates it).</p>
+      <p className="lede">The pool in <code>sound/</code>. Pick from it when cutting, or ask Claude to find this week&apos;s trending sounds for a bit. Never re-import a file that is already here (it truncates it).</p>
       <SoundForm />
       <h2>In the pool</h2>
       <div className="space-y-2">

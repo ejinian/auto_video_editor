@@ -39,7 +39,7 @@ export function JobView({ initial }: { initial: JobInfo }) {
   return (
     <div>
       <h1>{job.title}</h1>
-      <p className="text-muted text-sm -mt-1 mb-3">
+      <p className="lede">
         {job.done
           ? job.ok ? <span className="text-acc">done in {secs.toFixed(0)} s.</span> : <span className="text-bad">stopped on an error — read the last lines.</span>
           : <span className="pulse">running… a 30 s render takes about a minute. The log updates by itself.</span>}

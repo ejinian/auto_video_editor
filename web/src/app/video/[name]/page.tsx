@@ -35,7 +35,7 @@ export default async function Video({ params }: { params: Promise<{ name: string
         <StatusTag rendered={d.rendered} stale={d.stale} />
         {d.capcutDraft && <Tag title="a CapCut draft with this name exists">CapCut</Tag>}
       </h1>
-      <p className="text-muted text-sm -mt-1 mb-3">
+      <p className="lede">
         {d.sound ? <>{d.sound.title}{d.sound.author ? ` — ${d.sound.author}` : ""}{d.sound.tempo ? ` · ${d.sound.tempo.toFixed(0)} bpm` : ""}</> : pr.sound}
         {" · "}{d.realLength.toFixed(1)} s · {d.slots.length} shots · {rhythm}{extras ? ` · ${extras}` : ""}
         {" · "}hook: {pr.caption ? <i>{pr.caption}</i> : "none"}

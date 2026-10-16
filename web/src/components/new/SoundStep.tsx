@@ -121,10 +121,10 @@ export function SoundStep({ folder, clipCount, sounds, selected, onSounds, onSel
         ))}
       </div>
 
-      <div className="flex items-center gap-3 mt-5">
-        <button type="button" className="btn sec" onClick={onBack}>← Clips</button>
-        <button type="button" className="btn" disabled={!selected} onClick={onNext}>Next: how to cut it →</button>
-        <span className="text-muted text-sm">{selected ? sounds.find((s) => s.path === selected)?.title : "pick a sound first"}</span>
+      <div className="stepbar">
+        <button type="button" className="btn ghost" onClick={onBack}>← Clips</button>
+        <span className="status">{selected ? sounds.find((s) => s.path === selected)?.title : "pick a sound first"}</span>
+        <button type="button" className="btn lg" disabled={!selected} onClick={onNext}>Next: how to cut it →</button>
       </div>
     </div>
   );

@@ -32,13 +32,14 @@ export function NewVideoFlow({ defaultName, folders, sounds: initialSounds, init
   return (
     <div>
       <h1>New video</h1>
+      <p className="lede">Three steps to a finished mp4: the clips, the sound, how to cut it. About two minutes.</p>
       <div className="steps">
         {STEPS.map((label, i) => {
           const n = i + 1;
           return (
             <button key={label} type="button" className={n === step ? "on" : n < step ? "done" : ""} disabled={!can[i] || n === step} onClick={() => setStep(n)}>
               <span className="k">{n < step ? "✓" : n}</span>
-              <span>{label}<span className="text-muted font-normal"> · {sub[i]}</span></span>
+              <span className="min-w-0"><span className="t">{label}</span><span className="s">{sub[i]}</span></span>
             </button>
           );
         })}

@@ -10,7 +10,7 @@ export default async function Videos() {
   return (
     <div>
       <h1>Videos</h1>
-      <p className="text-muted text-sm -mt-1 mb-3">Every edit in <code>projects/</code>. The finished file is <code>final/&lt;name&gt;.mp4</code>; <code>out/</code> keeps the storyboard and earlier renders.</p>
+      <p className="lede">Every edit in <code>projects/</code>. The finished file is <code>final/&lt;name&gt;.mp4</code>; <code>out/</code> keeps the storyboard and earlier renders.</p>
       <div className="card !p-0 overflow-hidden">
         <table className="t">
           <thead><tr><th>video</th><th>shoot</th><th>sound</th><th>cut</th><th>on-screen hook</th><th>edited</th><th></th></tr></thead>

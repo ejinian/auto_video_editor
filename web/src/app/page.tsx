@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { AlertTriangle, Plus } from "lucide-react";
 import { folderClips, folders, health, pendingPlans, projects, readIdeas } from "@/lib/beatcut";
 import { mmss, thumbUrl } from "@/lib/format";
 import { StatusTag, Tag } from "@/components/Tag";
@@ -15,26 +15,28 @@ export default async function Home() {
   return (
     <div>
       {(!h.apiKey || !h.ffmpeg || !h.uv) && (
-        <div className="card border-warn/60 mb-4 text-sm">
-          <b>Setup:</b>{" "}
-          {!h.uv && <span>`uv` is not on the PATH (the CLI runs with it). </span>}
-          {!h.ffmpeg && <span>`ffmpeg` is not on the PATH. </span>}
-          {!h.apiKey && <span>ANTHROPIC_API_KEY is not set, so the Claude panel can&apos;t answer. Put it in <code>web/.env.local</code> and restart <code>npm run dev</code>. </span>}
-          See <Link href="/howto">how to</Link>.
+        <div className="notice warn mb-5">
+          <AlertTriangle size={16} />
+          <div>
+            {!h.uv && <span><code>uv</code> is not on the PATH (the CLI runs with it). </span>}
+            {!h.ffmpeg && <span><code>ffmpeg</code> is not on the PATH. </span>}
+            {!h.apiKey && <span>The Claude panel needs <code>ANTHROPIC_API_KEY</code> in <code>web/.env.local</code> (restart <code>npm run dev</code>); the buttons work without it. </span>}
+            See <Link href="/howto">how to</Link>.
+          </div>
         </div>
       )}
 
-      <div className="card mb-5 flex flex-wrap items-center gap-4 border-acc/40">
-        <Link href="/new" className="btn !text-base !px-5 !py-3 no-underline hover:no-underline"><Plus size={18} /> New video</Link>
-        <div className="text-sm text-muted">Three steps: drop the phone clips in, pick a sound, say how to cut it. About two minutes to a finished mp4.</div>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex-1 min-w-[280px]">
+          <h1>Shoots</h1>
+          <p className="lede">A shoot is a folder of phone clips in <code>clips/</code>. Open one to see its clips and the videos cut from it; the number on each clip is what the edit buttons and Claude mean by &ldquo;clip 3&rdquo;.</p>
+        </div>
+        <Link href="/new" className="btn lg no-underline hover:no-underline"><Plus size={18} /> New video</Link>
       </div>
 
-      <h1>Shoots</h1>
-      <p className="text-muted text-sm -mt-1 mb-3">A shoot is a folder of phone clips in <code>clips/</code> (dropped in through <Link href="/new">New video</Link> or copied there in Finder). Open one to see its clips and videos; the number on each clip is what the edit buttons and Claude use.</p>
-
       {plans.length > 0 && (
-        <div className="card mb-3 border-acc/40">
-          <div className="text-sm">
+        <div className="notice mb-3">
+          <div>
             <b>Planned, not shot yet:</b>{" "}
             {plans.map((p) => <span key={p.folder} className="mr-3"><Link href={`/shoot/${encodeURIComponent(p.folder)}`}>{p.folder}</Link> <span className="text-muted">(shot list in {p.path})</span></span>)}
             <span className="text-muted">— <Link href="/new">New video</Link> with the folder named <code>{plans[0].folder}</code> and it shows up here.</span>
@@ -50,14 +52,14 @@ export default async function Home() {
         {fs.map((f, i) => (
           <Link key={f.name} href={`/shoot/${encodeURIComponent(f.name)}`} className="card no-underline hover:border-acc hover:no-underline text-fg block">
             <div className="flex items-center gap-2 mb-2">
-              <b className="text-base">{f.name}</b>
+              <b className="text-[15px]">{f.name}</b>
               <Tag>{f.clipCount} clips · {mmss(f.footage)}</Tag>
               {f.plan && <Tag kind="ok">plan</Tag>}
             </div>
             <div className="flex gap-1 overflow-hidden rounded-lg">
               {strips[i].map((c) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img key={c.path} src={thumbUrl(c.folder, c.stem)} alt="" className="h-[88px] w-[50px] object-cover rounded bg-black" loading="lazy" />
+                <img key={c.path} src={thumbUrl(c.folder, c.stem)} alt="" className="h-[96px] w-[54px] object-cover rounded-md bg-black" loading="lazy" />
               ))}
             </div>
             <div className="text-muted text-sm mt-2">
