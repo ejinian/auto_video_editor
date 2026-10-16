@@ -27,3 +27,12 @@ export function mediaUrl(relPath: string, download = false): string {
 export function thumbUrl(folder: string, stem: string): string {
   return `/api/thumb/${encodeURIComponent(folder)}/${encodeURIComponent(stem)}`;
 }
+
+/** The timeline's frame for a slot; the key makes the browser refetch after an edit. */
+export function slotThumbUrl(name: string, slot: number, key: string): string {
+  return `/api/slot-thumb/${encodeURIComponent(name)}/${slot}?k=${encodeURIComponent(key)}`;
+}
+
+export function clipFrameUrl(folder: string, stem: string, t: number): string {
+  return `/api/clip-frame/${encodeURIComponent(folder)}/${encodeURIComponent(stem)}?t=${t.toFixed(1)}`;
+}
