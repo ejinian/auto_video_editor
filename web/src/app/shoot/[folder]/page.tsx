@@ -1,13 +1,13 @@
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { notFound } from "next/navigation";
 import fs from "node:fs";
 import path from "node:path";
 import { ClipGrid } from "@/components/ClipGrid";
-import { CutForm } from "@/components/CutForm";
 import { FramesButton } from "@/components/FramesButton";
 import { Markdown } from "@/components/Markdown";
 import { StatusTag, Tag } from "@/components/Tag";
-import { folderClips, nextProjectName, projects, readPlan, sounds } from "@/lib/beatcut";
+import { folderClips, projects, readPlan } from "@/lib/beatcut";
 import { mediaUrl, mmss } from "@/lib/format";
 import { OUT } from "@/lib/paths";
 
@@ -20,7 +20,7 @@ export default async function Shoot({ params }: { params: Promise<{ folder: stri
   const clips = await folderClips(folder);
   const plan = readPlan(folder);
   if (!clips.length && !plan) notFound();
-  const [ps, snds] = await Promise.all([projects(), sounds()]);
+  const ps = await projects();
   const mine = ps.filter((p) => p.folder === folder);
   const sheets = clips
     .map((c) => ({ clip: c, rel: `out/${folder}/_frames_${c.stem}.jpg` }))
@@ -33,12 +33,19 @@ export default async function Shoot({ params }: { params: Promise<{ folder: stri
         <Tag>{clips.length} clips · {mmss(clips.reduce((a, c) => a + c.duration, 0))}</Tag>
         {clips.some((c) => c.hdr) && <Tag kind="warn" title="HDR clips get an Apple-tone-mapped SDR proxy at render time, automatically">HDR</Tag>}
       </h1>
+      {clips.length > 0 && (
+        <div className="card mb-4 flex flex-wrap items-center gap-4 border-acc/40">
+          <Link href={`/new?folder=${encodeURIComponent(folder)}`} className="btn !text-base !px-5 !py-3 no-underline hover:no-underline"><Plus size={18} /> New video from these clips</Link>
+          <div className="text-sm text-muted">Pick a sound, then length, pace, opener and order. Or open the Claude panel and say what you want (&ldquo;cut two variations, opener 3, story 3,1,5&rdquo;); it runs the same commands and checks the storyboard.</div>
+        </div>
+      )}
       <p className="text-muted text-sm -mt-1 mb-3">
         Clips live in <code>clips/{folder}/</code>. Their numbers are what the edit buttons and Claude use (&ldquo;clip 3&rdquo;). Adding or renaming files renumbers them.
-        {" "}<FramesButton folder={folder} label={sheets.length ? "Redo frame sheets" : "Make frame sheets"} />
+        {" "}<Link href={`/new?folder=${encodeURIComponent(folder)}`}>Add clips</Link> ·{" "}
+        <FramesButton folder={folder} label={sheets.length ? "Redo frame sheets" : "Make frame sheets"} />
       </p>
 
-      {clips.length > 0 ? <ClipGrid clips={clips} /> : <div className="card">No clips in <code>clips/{folder}/</code> yet. AirDrop them in and refresh.</div>}
+      {clips.length > 0 ? <ClipGrid clips={clips} /> : <div className="card">No clips in <code>clips/{folder}/</code> yet. <Link href="/new">New video</Link> with this folder name drops them in.</div>}
 
       {plan && (
         <>
@@ -81,14 +88,6 @@ export default async function Shoot({ params }: { params: Promise<{ folder: stri
           </table>
         </div>
       ) : <div className="text-muted text-sm">none yet</div>}
-
-      {clips.length > 0 && (
-        <>
-          <h2>Cut a video from these clips</h2>
-          <CutForm folder={folder} clips={clips} sounds={snds} nextName={nextProjectName(folder)} />
-          <p className="text-muted text-sm mt-3">Or open the Claude panel and say what you want (&ldquo;cut two variations, opener 3, story 3,1,5&rdquo;); it runs the same commands and checks the storyboard.</p>
-        </>
-      )}
     </div>
   );
 }

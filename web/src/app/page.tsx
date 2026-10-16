@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { folderClips, folders, health, pendingPlans, projects, readIdeas } from "@/lib/beatcut";
 import { mmss, thumbUrl } from "@/lib/format";
 import { StatusTag, Tag } from "@/components/Tag";
@@ -23,21 +24,26 @@ export default async function Home() {
         </div>
       )}
 
+      <div className="card mb-5 flex flex-wrap items-center gap-4 border-acc/40">
+        <Link href="/new" className="btn !text-base !px-5 !py-3 no-underline hover:no-underline"><Plus size={18} /> New video</Link>
+        <div className="text-sm text-muted">Three steps: drop the phone clips in, pick a sound, say how to cut it. About two minutes to a finished mp4.</div>
+      </div>
+
       <h1>Shoots</h1>
-      <p className="text-muted text-sm -mt-1 mb-3">A shoot is a folder of phone clips in <code>clips/</code>. Open one to cut a video from it; the number on each clip is what the edit buttons and Claude use.</p>
+      <p className="text-muted text-sm -mt-1 mb-3">A shoot is a folder of phone clips in <code>clips/</code> (dropped in through <Link href="/new">New video</Link> or copied there in Finder). Open one to see its clips and videos; the number on each clip is what the edit buttons and Claude use.</p>
 
       {plans.length > 0 && (
         <div className="card mb-3 border-acc/40">
           <div className="text-sm">
             <b>Planned, not shot yet:</b>{" "}
             {plans.map((p) => <span key={p.folder} className="mr-3"><Link href={`/shoot/${encodeURIComponent(p.folder)}`}>{p.folder}</Link> <span className="text-muted">(shot list in {p.path})</span></span>)}
-            <span className="text-muted">— AirDrop the clips into <code>clips/{plans[0].folder}/</code> and it shows up here.</span>
+            <span className="text-muted">— <Link href="/new">New video</Link> with the folder named <code>{plans[0].folder}</code> and it shows up here.</span>
           </div>
         </div>
       )}
 
       {fs.length === 0 && (
-        <div className="card">No clips yet. In Finder make <code>~/Desktop/beatcut/clips/day5/</code>, AirDrop the phone clips in, and refresh. Or ask Claude to <i>/day plan</i> tomorrow&apos;s shoot.</div>
+        <div className="card">No clips yet. Press <Link href="/new">New video</Link> and drop the phone clips in. Or ask Claude to <i>/day plan</i> tomorrow&apos;s shoot.</div>
       )}
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>

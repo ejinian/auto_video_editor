@@ -104,6 +104,26 @@ export function ChatPanel() {
     } catch { /* private window */ }
   }, [loadHistory]);
   useEffect(() => { document.documentElement.classList.toggle("chat-open", open); }, [open]);
+
+  // another part of the page ("Let Claude pick" in the New video flow) asks for the panel
+  // with a question already typed; nothing is sent until the user presses Enter
+  const wantFocus = useRef(false);
+  useEffect(() => {
+    const h = (e: Event) => {
+      const prompt = (e as CustomEvent<{ prompt?: string }>).detail?.prompt;
+      if (typeof prompt !== "string") return;
+      setInput(prompt);
+      wantFocus.current = true;
+      setOpen(true);
+      try { localStorage.setItem(OPEN_KEY, "1"); } catch { /* none */ }
+      setTimeout(() => taRef.current?.focus(), 0);
+    };
+    window.addEventListener("beatcut:chat", h);
+    return () => window.removeEventListener("beatcut:chat", h);
+  }, []);
+  useEffect(() => {
+    if (open && wantFocus.current) { wantFocus.current = false; taRef.current?.focus(); }
+  }, [open]);
   const openPanel = (v: boolean) => {
     setOpen(v);
     try { localStorage.setItem(OPEN_KEY, v ? "1" : "0"); } catch { /* none */ }
