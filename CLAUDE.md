@@ -256,14 +256,34 @@ same reason as before: `sound sound/x.mp3` TRUNCATES the file), the post caption
 (`out/<folder>/<name>.caption.txt`), the thumbnail cache (`out/<folder>/.thumbs/`) and
 the chat index (`out/.app/chats.json`).
 
-Pages: `/` shoots (every folder under `clips/` with video files, numbered thumbnails,
-pending `projects/<folder>.plan.md` shot lists) · `/shoot/<folder>` (clips, shot list,
-frame sheets, videos from it, the "Cut it" form: sound link or pool, length, preset,
-opener, story/random/auto, seed, hook, `--sync`) · `/video/<name>` (toolbar, player +
-**timeline**, storyboard and "All commands" collapsed, post caption, versions) ·
-`/videos` · `/sounds` (the pool, add by link) · `/jobs` · `/howto` (HOWTO.md). API
-routes live under `web/src/app/api/`; `GET /api/state` dumps folders/projects/sounds/
-health as JSON.
+Pages: `/` shoots (the **New video** button on top, then every folder under `clips/` with
+video files, numbered thumbnails, pending `projects/<folder>.plan.md` shot lists) ·
+`/new` (the guided flow, below) · `/shoot/<folder>` (clips, shot list, frame sheets,
+videos from it, and "New video from these clips" on top, which is `/new?folder=<folder>`
+= the flow at its sound step) · `/video/<name>` (toolbar, player + **timeline**,
+storyboard and "All commands" collapsed, post caption, versions) · `/videos` · `/sounds`
+(the pool, add by link) · `/jobs` · `/howto` (HOWTO.md). API routes live under
+`web/src/app/api/`; `GET /api/state` dumps folders/projects/sounds/health as JSON.
+
+**Starting a video = `/new`, three steps (2026-10-15; the old "Cut it" form at the bottom
+of the shoot page is gone):**
+1. **Clips.** A folder name (default the next free `dayN`, counting clip folders, plans and
+   projects; editable) and a drop zone. Files go to `clips/<name>/` through
+   `POST /api/folders/<name>/clips` (multipart, busboy, each file streamed to a `.part`
+   file then renamed — never held in memory; original filenames kept; refused: anything
+   not .mov/.mp4/.m4v, names with `/` or `..`, a name already in the folder, a folder
+   name outside `[A-Za-z0-9_][A-Za-z0-9 _.-]*`). One request per file, so the numbered
+   thumbnails appear as each one lands. Or click an existing folder instead.
+   `GET /api/folders/<name>/clips` returns the numbered clips + the next project name.
+2. **Sound.** The pool as cards (title, author, length, bpm, first drop, `<audio>`, which
+   videos used it); click one. A paste-a-link box runs `sound <link>` as a job
+   (`POST /api/sounds`), polls `/api/jobs/<id>` and selects the newly added file when it
+   is done. **Let Claude pick** opens the side panel with a prefilled question (a
+   `beatcut:chat` window event the panel listens for; nothing is sent until Enter).
+3. **Cut.** Length and preset as segmented controls, the opener by clicking a thumbnail,
+   Story vs Random as two cards, the rest (video name, story order, seed, hook, `--sync`,
+   render now) under "More options". "Cut it" posts to the same `POST /api/cut` as before
+   → `/jobs/<id>` → the video page. No second way to run the CLI was added.
 
 **The timeline (2026-10-15) is how an edit is made in the app.** Under the player, one
 tile per slot (width ∝ length, min 44 px), showing the slot number, clip number, length,

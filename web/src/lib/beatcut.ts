@@ -77,6 +77,22 @@ export function safeName(s: string): string {
   return s.replace(/[^A-Za-z0-9_.-]/g, "_");
 }
 
+/** A clip folder name the app will create or write into: one path segment, no leading dot. */
+export function validFolderName(s: string): boolean {
+  return /^[A-Za-z0-9_][A-Za-z0-9 _.-]{0,79}$/.test(s) && !s.includes("..") && s.trim() === s;
+}
+
+/** `dayN` with the first N no clip folder, plan or project uses yet. */
+export function nextDayName(): string {
+  const used = new Set<number>();
+  const take = (s: string) => { const m = s.match(/^day(\d+)(?:[._]|$)/); if (m) used.add(Number(m[1])); };
+  if (exists(CLIPS)) for (const d of fs.readdirSync(CLIPS)) take(d);
+  if (exists(PROJECTS)) for (const f of fs.readdirSync(PROJECTS)) take(f);
+  let n = 1;
+  while (used.has(n)) n++;
+  return `day${n}`;
+}
+
 // -------------------------------------------------------------------- clips
 
 interface ProbeEntry { duration: number; w: number; h: number; hdr: boolean }

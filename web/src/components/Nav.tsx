@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
@@ -22,7 +23,8 @@ export function Nav() {
           <Link key={l.href} href={l.href} className={`text-sm no-underline hover:text-fg hover:no-underline ${active ? "text-fg" : "text-muted"}`}>{l.label}</Link>
         );
       })}
-      <span className="ml-auto text-[11.5px] text-muted hidden md:inline">Young Vibas · one post a day</span>
+      <Link href="/new" className={`btn sm ml-auto no-underline hover:no-underline ${path === "/new" ? "" : "sec"}`}><Plus size={14} /> New video</Link>
+      <span className="text-[11.5px] text-muted hidden md:inline">Young Vibas · one post a day</span>
     </nav>
   );
 }
