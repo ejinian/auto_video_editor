@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Shuffle, Upload } from "lucide-react";
+import { Link2, Shuffle, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { useJob } from "@/components/useJob";
 import type { ProjectSummary } from "@/lib/types";
@@ -21,6 +21,26 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const uploading = pct != null && pct < 100;
+  const [link, setLink] = useState("");
+  const [cookies, setCookies] = useState(false);
+  const [linkBusy, setLinkBusy] = useState(false);
+
+  // a posted video by link: the CLI downloads it (tikwm for TikTok, yt-dlp otherwise) and
+  // goes on like an uploaded file; the job page shows the download as it happens
+  const fromLink = async () => {
+    const l = link.trim();
+    if (!/^https?:\/\/\S+$/.test(l)) { setError("paste a TikTok, Instagram or YouTube link"); return; }
+    setError(null);
+    setLinkBusy(true);
+    try {
+      const r = await fetch("/api/remix", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ link: l, name: name.trim(), cookies: cookies ? "chrome" : undefined }) });
+      const j = (await r.json().catch(() => ({}))) as { job?: string; error?: string };
+      if (!r.ok || !j.job) { setError(j.error ?? `request failed (${r.status})`); return; }
+      router.push(`/jobs/${j.job}`);
+    } finally {
+      setLinkBusy(false);
+    }
+  };
 
   const upload = (file: File) => {
     if (!VIDEO_RE.test(file.name)) { setError("drop a video: .mp4, .mov or .m4v"); return; }
@@ -52,8 +72,20 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
             <label className="label !mt-0" htmlFor="remix-name">Name <span className="text-muted font-normal">(optional)</span></label>
             <input id="remix-name" className="input font-mono" placeholder="from the file name" value={name} onChange={(e) => setName(e.target.value)} disabled={uploading} />
           </div>
-          <div className="text-muted text-xs pb-2 flex-1 min-w-[240px]">The video is cut into its shots (<code>clips/&lt;name&gt;/</code>), its audio joins the sound pool, and four new videos are cut and rendered from those shots: a hook cut, the same story on another sound, a reorder, a long version. About five minutes.</div>
+          <div className="text-muted text-xs pb-2 flex-1 min-w-[240px]">Paste the post&apos;s link or drop the file. The video is cut into its shots (<code>clips/&lt;name&gt;/</code>), its audio joins the sound pool, and four new videos are cut and rendered from those shots: a hook cut, the same story on another sound, a reorder, a long version. A few minutes.</div>
         </div>
+        <div className="flex gap-2 items-center mb-3">
+          <Link2 size={16} className="text-muted shrink-0" />
+          <input
+            className="input" placeholder="https://www.tiktok.com/@…/video/…  ·  instagram.com/reel/…  ·  youtube.com/…"
+            aria-label="link to a posted video" value={link} disabled={linkBusy || uploading}
+            onChange={(e) => setLink(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void fromLink(); } }}
+          />
+          <button type="button" className="btn" disabled={linkBusy || uploading || !link.trim()} onClick={() => void fromLink()}>{linkBusy ? "Starting…" : "Remix the link"}</button>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-muted mb-3"><input type="checkbox" checked={cookies} onChange={(e) => setCookies(e.target.checked)} /> use Chrome&apos;s login for Instagram (macOS asks for Keychain access)</label>
+        <div className="text-muted text-xs mb-2">…or the file itself:</div>
         <div
           className={`drop ${over ? "over" : ""}`}
           onDragOver={(e) => { e.preventDefault(); setOver(true); }}

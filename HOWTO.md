@@ -55,7 +55,8 @@ research and the caption skills. Both read and write the same files, so you can 
    When a reel does numbers, open it in the app and press **Remix ×4**: four new posts
    from the same clips (a short hook cut, the same story on another sound, a reorder, a
    long version), or **Remix with Claude** to have the hooks and captions written too.
-   A reel from before the app? **Remix** in the sidebar: drop the mp4, same four come out.
+   A reel from before the app? **Remix** in the sidebar: paste its TikTok / Instagram link
+   (or drop the mp4) and the same four come out.
 
 ## What goes where
 
