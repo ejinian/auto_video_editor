@@ -6,9 +6,12 @@ import path from "node:path";
 import { ClipGrid } from "@/components/ClipGrid";
 import { FramesButton } from "@/components/FramesButton";
 import { Markdown } from "@/components/Markdown";
-import { StatusTag, Tag } from "@/components/Tag";
+import { LiveJobs } from "@/components/LiveJobs";
+import { StatusChip } from "@/components/StatusChip";
+import { Tag } from "@/components/Tag";
 import { folderClips, projects, readPlan } from "@/lib/beatcut";
 import { mediaUrl, mmss } from "@/lib/format";
+import { runningJobFor } from "@/lib/jobs";
 import { OUT } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +31,7 @@ export default async function Shoot({ params }: { params: Promise<{ folder: stri
 
   return (
     <div>
+      <LiveJobs />
       <h1>
         {folder}
         <Tag>{clips.length} clips · {mmss(clips.reduce((a, c) => a + c.duration, 0))}</Tag>
@@ -80,7 +84,7 @@ export default async function Shoot({ params }: { params: Promise<{ folder: stri
                   <td className="text-muted">{p.sound}</td>
                   <td>{p.length.toFixed(0)} s · {p.slots} shots</td>
                   <td className="text-muted">{p.caption ?? ""}</td>
-                  <td><StatusTag rendered={p.rendered} stale={p.stale} /></td>
+                  <td><StatusChip name={p.name} rendered={p.rendered} stale={p.stale} posted={p.posted} job={runningJobFor(p.name)} /></td>
                 </tr>
               ))}
             </tbody>

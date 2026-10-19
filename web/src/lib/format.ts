@@ -36,3 +36,12 @@ export function slotThumbUrl(name: string, slot: number, key: string): string {
 export function clipFrameUrl(folder: string, stem: string, t: number): string {
   return `/api/clip-frame/${encodeURIComponent(folder)}/${encodeURIComponent(stem)}?t=${t.toFixed(1)}`;
 }
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** `Oct 19` for an ISO date, the same on the server and in the browser (no locale). */
+export function shortDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}

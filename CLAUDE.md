@@ -256,14 +256,39 @@ same reason as before: `sound sound/x.mp3` TRUNCATES the file), the post caption
 (`out/<folder>/<name>.caption.txt`), the thumbnail cache (`out/<folder>/.thumbs/`) and
 the chat index (`out/.app/chats.json`).
 
-Pages: `/` shoots (the **New video** button on top, then every folder under `clips/` with
-video files, numbered thumbnails, pending `projects/<folder>.plan.md` shot lists) ·
-`/new` (the guided flow, below) · `/shoot/<folder>` (clips, shot list, frame sheets,
-videos from it, and "New video from these clips" on top, which is `/new?folder=<folder>`
-= the flow at its sound step) · `/video/<name>` (toolbar, player + **timeline**,
-storyboard and "All commands" collapsed, post caption, versions) · `/videos` · `/sounds`
-(the pool, add by link) · `/jobs` · `/howto` (HOWTO.md). API routes live under
-`web/src/app/api/`; `GET /api/state` dumps folders/projects/sounds/health as JSON.
+Pages: `/` **the feed (2026-10-19)**: the **New video** button on top, then one card per
+video, newest first — poster frame (`/api/slot-thumb/<name>/1`, else the storyboard, else
+a placeholder), name, shoot, sound, length, the on-screen hook and ONE status chip; under
+the feed a one-line **Shoots** strip (each folder a link to `/shoot/<folder>`, plus the
+planned-not-shot plans) and the setup warnings as before · `/new` (the guided flow, below)
+· `/shoot/<folder>` (clips, shot list, frame sheets, videos from it, and "New video from
+these clips" on top, which is `/new?folder=<folder>` = the flow at its sound step) ·
+`/video/<name>` (toolbar, player + **timeline**, storyboard and "All commands" collapsed,
+post caption, versions, and a **Post it →** link in the title) · `/video/<name>/post`
+(the post step, below) · `/videos` · `/sounds` (the pool, add by link) · `/jobs` ·
+`/howto` (HOWTO.md). API routes live under `web/src/app/api/`; `GET /api/state` dumps
+folders/projects/sounds/health as JSON. The nav's first entry is "Home".
+
+**The status chip (`StatusChip`, on the feed cards and the `/videos` and `/shoot/<folder>`
+rows) is one of, in this order:** `cutting…` / `rendering…` with the elapsed seconds while a
+job for that project runs (the feed card also draws an indeterminate bar and the step
+names `plan → board → render` with the current one lit) · `posted <date>` · `needs render`
+(never rendered, or edited since) · `ready to post`. Live state comes from `LiveJobs`: one
+client store polling `GET /api/jobs` every 2 s while any job runs (10 s idle), mounted once
+per page; when a job finishes it calls `router.refresh()` so the chip settles on what is on
+disk. `jobs.ts` derives `project` (from `-p <name>`) and `steps` (the subcommand of each
+command) when a job starts, and `/api/jobs` adds `step` = the number of `$ ` lines in the
+log so far minus one (`web/src/lib/jobmeta.ts` holds those pure helpers).
+
+**Posted = `out/.app/posted.json`** (`{ "<name>": { postedAt, platform?, url? } }`,
+`web/src/lib/posted.ts`; `PUT`/`DELETE /api/projects/<name>/posted`; `deleteProject`
+drops the entry too). It is the user's own note that they uploaded the video — **the app
+never posts anything**, it has no account. `/video/<name>/post` is the hand-off: the
+finished mp4 (`final/<name>.mp4`, a Download button via `/api/media/...?download`), the
+on-screen hook, the post caption (`CaptionEditor`) with a **Copy caption** button (copies
+the SAVED caption), a three-item checklist (upload as Reel/TikTok, paste the caption, add
+the sound by name), and **Mark as posted** (TikTok / Instagram / both, optional link) which
+writes the note and returns to the feed; a posted video shows **Unmark** instead.
 
 **Starting a video = `/new`, three steps (2026-10-15; the old "Cut it" form at the bottom
 of the shoot page is gone):**

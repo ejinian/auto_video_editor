@@ -34,6 +34,7 @@ export default async function Video({ params }: { params: Promise<{ name: string
         {name}
         <StatusTag rendered={d.rendered} stale={d.stale} />
         {d.capcutDraft && <Tag title="a CapCut draft with this name exists">CapCut</Tag>}
+        <Link href={`/video/${encodeURIComponent(name)}/post`} className="btn sm no-underline hover:no-underline ml-auto" title="download the mp4, copy the caption, mark it posted">Post it →</Link>
       </h1>
       <p className="lede">
         {d.sound ? <>{d.sound.title}{d.sound.author ? ` — ${d.sound.author}` : ""}{d.sound.tempo ? ` · ${d.sound.tempo.toFixed(0)} bpm` : ""}</> : pr.sound}

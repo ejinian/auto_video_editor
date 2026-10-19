@@ -1,19 +1,25 @@
 import Link from "next/link";
 import { AlertTriangle, Plus } from "lucide-react";
-import { folderClips, folders, health, pendingPlans, projects, readIdeas } from "@/lib/beatcut";
-import { mmss, thumbUrl } from "@/lib/format";
-import { StatusTag, Tag } from "@/components/Tag";
+import path from "node:path";
+import { exists, folders, health, pendingPlans, projectOut, projects, readIdeas } from "@/lib/beatcut";
+import { mediaUrl, mmss } from "@/lib/format";
+import { runningJobFor } from "@/lib/jobs";
+import { rel } from "@/lib/paths";
+import { LiveJobs } from "@/components/LiveJobs";
+import { Poster } from "@/components/Poster";
+import { StatusChip } from "@/components/StatusChip";
 
 export const dynamic = "force-dynamic";
 
+/** The feed: every video, newest first, with the one thing that matters about it (its status). */
 export default async function Home() {
   const [fs, ps, h] = await Promise.all([folders(), projects(), health()]);
   const plans = pendingPlans(fs.map((f) => f.name));
   const ideas = readIdeas().trim().split("\n").filter(Boolean);
-  const strips = await Promise.all(fs.map(async (f) => (await folderClips(f.name)).slice(0, 6)));
 
   return (
     <div>
+      <LiveJobs />
       {(!h.apiKey || !h.ffmpeg || !h.uv) && (
         <div className="notice warn mb-5">
           <AlertTriangle size={16} />
@@ -28,65 +34,59 @@ export default async function Home() {
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex-1 min-w-[280px]">
-          <h1>Shoots</h1>
-          <p className="lede">A shoot is a folder of phone clips in <code>clips/</code>. Open one to see its clips and the videos cut from it; the number on each clip is what the edit buttons and Claude mean by &ldquo;clip 3&rdquo;.</p>
+          <h1>Videos</h1>
+          <p className="lede">Newest first. A card is a video: open it to fix the edit, or press <b>Post it</b> on it when the chip says ready. Nothing is ever posted by the app.</p>
         </div>
         <Link href="/new" className="btn lg no-underline hover:no-underline"><Plus size={18} /> New video</Link>
       </div>
 
-      {plans.length > 0 && (
-        <div className="notice mb-3">
-          <div>
-            <b>Planned, not shot yet:</b>{" "}
-            {plans.map((p) => <span key={p.folder} className="mr-3"><Link href={`/shoot/${encodeURIComponent(p.folder)}`}>{p.folder}</Link> <span className="text-muted">(shot list in {p.path})</span></span>)}
-            <span className="text-muted">— <Link href="/new">New video</Link> with the folder named <code>{plans[0].folder}</code> and it shows up here.</span>
-          </div>
-        </div>
-      )}
-
-      {fs.length === 0 && (
-        <div className="card">No clips yet. Press <Link href="/new">New video</Link> and drop the phone clips in. Or ask Claude to <i>/day plan</i> tomorrow&apos;s shoot.</div>
+      {ps.length === 0 && (
+        <div className="card">No video yet. Press <Link href="/new">New video</Link>: drop the phone clips in, pick a sound, cut.</div>
       )}
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>
-        {fs.map((f, i) => (
-          <Link key={f.name} href={`/shoot/${encodeURIComponent(f.name)}`} className="card no-underline hover:border-acc hover:no-underline text-fg block">
-            <div className="flex items-center gap-2 mb-2">
-              <b className="text-[15px]">{f.name}</b>
-              <Tag>{f.clipCount} clips · {mmss(f.footage)}</Tag>
-              {f.plan && <Tag kind="ok">plan</Tag>}
-            </div>
-            <div className="flex gap-1 overflow-hidden rounded-lg">
-              {strips[i].map((c) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={c.path} src={thumbUrl(c.folder, c.stem)} alt="" className="h-[96px] w-[54px] object-cover rounded-md bg-black" loading="lazy" />
-              ))}
-            </div>
-            <div className="text-muted text-sm mt-2">
-              {f.projects.length ? <>videos: {f.projects.join(", ")}</> : "no video yet"}
-            </div>
-          </Link>
-        ))}
+        {ps.map((p) => {
+          const board = path.join(projectOut(p.name), `_${p.name}_board.jpg`);
+          const sources = [`/api/slot-thumb/${encodeURIComponent(p.name)}/1`];
+          if (exists(board)) sources.push(mediaUrl(rel(board)));
+          return (
+            <Link key={p.name} href={`/video/${encodeURIComponent(p.name)}`} className="card vcard hover:border-acc">
+              <Poster sources={sources} alt={p.name} />
+              <div className="body">
+                <div className="name">{p.name}</div>
+                <div className="meta" title={p.sound}>
+                  {p.folder ? <>shoot {p.folder} · </> : null}{p.length.toFixed(0)} s · {p.slots} shots
+                </div>
+                <div className="meta" title={p.sound}>♪ {p.sound}</div>
+                {p.caption ? <div className="hook">&ldquo;{p.caption}&rdquo;</div> : <div className="meta">no hook on screen</div>}
+                <div className="foot">
+                  <StatusChip name={p.name} rendered={p.rendered} stale={p.stale} posted={p.posted} job={runningJobFor(p.name)} bar />
+                </div>
+              </div>
+            </Link>
+          );
+        })}
       </div>
 
-      <h2>Latest videos</h2>
-      <div className="card !p-0 overflow-hidden">
-        <table className="t">
-          <thead><tr><th>video</th><th>sound</th><th>cut</th><th>on-screen hook</th><th></th></tr></thead>
-          <tbody>
-            {ps.slice(0, 8).map((p) => (
-              <tr key={p.name}>
-                <td><Link href={`/video/${encodeURIComponent(p.name)}`}>{p.name}</Link></td>
-                <td className="text-muted">{p.sound}</td>
-                <td>{p.length.toFixed(0)} s · {p.slots} shots</td>
-                <td className="text-muted">{p.caption ?? ""}</td>
-                <td><StatusTag rendered={p.rendered} stale={p.stale} /></td>
-              </tr>
-            ))}
-            {ps.length === 0 && <tr><td colSpan={5} className="text-muted">none yet</td></tr>}
-          </tbody>
-        </table>
-        {ps.length > 8 && <div className="px-3 py-2 text-sm"><Link href="/videos">all {ps.length} videos →</Link></div>}
+      <h2>Shoots</h2>
+      <div className="strip">
+        {fs.length === 0 && <span>no clips yet — <Link href="/new">New video</Link> drops them into <code>clips/&lt;folder&gt;/</code></span>}
+        {fs.map((f, i) => (
+          <span key={f.name} className="inline-flex items-baseline gap-[10px]">
+            {i > 0 && <span className="dot">·</span>}
+            <span>
+              <Link href={`/shoot/${encodeURIComponent(f.name)}`} title={`${f.clipCount} clips · ${mmss(f.footage)}${f.plan ? " · has a shot list" : ""}`}>{f.name}</Link>
+              <small className="text-muted ml-[6px]">{f.clipCount} clips</small>
+            </span>
+          </span>
+        ))}
+        {plans.length > 0 && (
+          <span className="text-muted inline-flex items-baseline gap-[10px]">
+            {fs.length > 0 && <span className="dot">·</span>}
+            <span>planned, not shot yet: {plans.map((p, i) => <span key={p.folder}>{i > 0 && ", "}<Link href={`/shoot/${encodeURIComponent(p.folder)}`}>{p.folder}</Link></span>)}
+            {" "}(<Link href="/new">New video</Link> with that folder name)</span>
+          </span>
+        )}
       </div>
 
       {ideas.length > 0 && (

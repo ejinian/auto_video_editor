@@ -69,6 +69,13 @@ export interface FolderInfo {
   mtime: number;
 }
 
+/** One entry of out/.app/posted.json: the user's note that the video went up. */
+export interface PostedInfo {
+  postedAt: string;
+  platform?: "tiktok" | "instagram" | "both";
+  url?: string;
+}
+
 export interface ProjectSummary {
   name: string;
   folder: string | null;
@@ -81,6 +88,7 @@ export interface ProjectSummary {
   mp4: string | null;
   mtime: number;
   inFinal: boolean;
+  posted: PostedInfo | null;
 }
 
 export interface SlotRow {
@@ -117,16 +125,28 @@ export interface ProjectDetail {
   realLength: number;
   capcutDraft: boolean;
   inFinal: boolean;
+  posted: PostedInfo | null;
 }
 
 export interface JobInfo {
   id: string;
   title: string;
   cmds: string[][];
+  /** The project the commands work on (`-p <name>`), null for a bare `sound <link>`. */
+  project?: string | null;
+  /** The beatcut subcommand of each command, in order: `sound`, `plan`, `board`, `render`… */
+  steps?: string[];
   log: string;
   done: boolean;
   ok: boolean;
   then: string | null;
   startedAt: number;
   endedAt: number | null;
+}
+
+/** What /api/jobs lists: the job with the log cut short and the running step's index. */
+export interface JobSummary extends JobInfo {
+  project: string | null;
+  steps: string[];
+  step: number;
 }
