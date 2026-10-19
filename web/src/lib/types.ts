@@ -16,6 +16,9 @@ export interface Project {
   random?: boolean;
   seed?: number | null;
   caption: string | null;
+  /** Set by `remix`: the video this one was cut from, and which recipe (hook / sound / reorder / long). */
+  remix_of?: string | null;
+  remix?: string | null;
   cuts: number[];
   _drops?: Array<{ time: number } | number>;
   slots: Array<{ clip: number; in: number; reused?: boolean }>;
@@ -89,6 +92,8 @@ export interface ProjectSummary {
   mtime: number;
   inFinal: boolean;
   posted: PostedInfo | null;
+  remixOf: string | null;
+  remix: string | null;
 }
 
 export interface SlotRow {
@@ -126,6 +131,10 @@ export interface ProjectDetail {
   capcutDraft: boolean;
   inFinal: boolean;
   posted: PostedInfo | null;
+  /** The video this one was remixed from, and the remixes cut from this one. */
+  remixOf: string | null;
+  remix: string | null;
+  remixes: ProjectSummary[];
 }
 
 export interface JobInfo {

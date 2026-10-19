@@ -1002,6 +1002,11 @@ def cmd_plan(args) -> None:
                 die(f"no such clip: {c}")
             clip_paths.append(str(p.relative_to(ROOT)))
     project = {"name": out_name({}), "clips": clip_paths}
+    # a remix that is re-planned (another opener, another sound) stays a remix of its source
+    prev = load_json(project_path()) if project_path().exists() else {}
+    for k in ("remix_of", "remix"):
+        if prev.get(k):
+            project[k] = prev[k]
     clips = scan_clips(project)
     start = info["suggested_start"] if args.start is None else float(args.start)
     length = float(args.length) if args.length else min(30.0, info["duration"] - start)
@@ -1029,6 +1034,128 @@ def cmd_plan(args) -> None:
     print(f"\nnext: uv run beatcut.py {pfx}render        (then open {rel(out_dir(project) / (out_name(project) + '.mp4'))})")
 
 
+# ------------------------------------------------------------------- remix
+
+REMIX_RECIPES = {
+    "hook": "8 s, tight, opens on the strongest shot, random angles — the watch-it-again cut",
+    "sound": "the same story on another sound from the pool, loose pace",
+    "reorder": "15 s, random angles with a new seed, a different opener",
+    "long": "30 s, chill, the footage the original used least, first — on a second other sound if the pool has one",
+}
+
+
+def pool_sounds(exclude: set[str]) -> list[dict]:
+    """Other sounds in sound/, the ones with a clear drop first, then newest first."""
+    out = []
+    for mp3 in SOUND.glob("*.mp3"):
+        beats = mp3.with_suffix(".beats.json")
+        if rel(mp3) in exclude or not beats.exists():
+            continue
+        info = load_json(beats)
+        src = mp3.with_suffix(".source.json")
+        out.append({"sound": rel(mp3), "beats": rel(beats), "meta": load_json(src) if src.exists() else {},
+                    "drops": len(info.get("drops", [])), "mtime": mp3.stat().st_mtime})
+    out.sort(key=lambda s: (-(s["drops"] > 0), -s["mtime"]))
+    return out
+
+
+def next_name(prefix: str) -> str:
+    PROJECTS.mkdir(exist_ok=True)
+    ns = [int(m.group(1)) for q in PROJECTS.glob(f"{prefix}_*.json")
+          if (m := re.fullmatch(rf"{re.escape(prefix)}_(\d+)", q.stem))]
+    return f"{prefix}_{max(ns) + 1 if ns else 1}"
+
+
+def cmd_remix(args) -> None:
+    """Four new videos from the clips of a video that worked, each different enough to be
+    a new post: a hook cut, the same story on another sound, a reorder, a long version.
+    Each is a normal project (projects/<folder>_N.json, tagged remix_of / remix) that
+    every other command edits as usual."""
+    global CUR
+    src_name = CUR
+    src, clips = load_project(), scan_clips()
+    pointer = current_sound()
+    pointer_meta = pointer.get("meta", {})
+    only = [x.strip() for x in (args.only or "").split(",") if x.strip()] or list(REMIX_RECIPES)
+    for k in only:
+        if k not in REMIX_RECIPES:
+            die(f"unknown remix '{k}' — have: {', '.join(REMIX_RECIPES)}")
+
+    # what the source did with its footage
+    uses: dict[int, int] = {c["id"]: 0 for c in clips}
+    for s in src["slots"]:
+        uses[s["clip"]] = uses.get(s["clip"], 0) + 1
+    excluded = set(src.get("excluded", []))
+    usable = [c for c in clips if c["id"] not in excluded]
+    if not usable:
+        die("every clip of the source is excluded")
+    drop_times = {round(d["time"], 3) for d in src.get("_drops", [])}
+    drop_clip = next((s["clip"] for t, s in zip(src["cuts"], src["slots"]) if round(t, 3) in drop_times), None)
+    longest = max(usable, key=lambda c: c["duration"])["id"]
+    most_used = max(usable, key=lambda c: (uses.get(c["id"], 0), c["duration"]))["id"]
+    strongest = drop_clip or src.get("hero") or src.get("first") or most_used or longest
+    least_first = [c["id"] for c in sorted(usable, key=lambda c: (uses.get(c["id"], 0), -c["duration"]))]
+    other_opener = next((s["clip"] for s in src["slots"][1:] if s["clip"] != src.get("first")), least_first[0])
+    seed0 = int(src.get("seed") or 0)
+
+    # other sounds: --sounds in order, else the pool minus the source's sound
+    alts: list[dict] = []
+    for sp in (args.sounds or []):
+        p = Path(sp)
+        p = p if p.is_absolute() else ROOT / p
+        if not p.exists() or not p.with_suffix(".beats.json").exists():
+            die(f"no analysed sound at {sp} (run `sound {sp}` first)")
+        srcj = p.with_suffix(".source.json")
+        alts.append({"sound": rel(p), "beats": rel(p.with_suffix(".beats.json")), "meta": load_json(srcj) if srcj.exists() else {}})
+    alts += pool_sounds({src["sound"]} | {a["sound"] for a in alts})
+    same = {"sound": src["sound"], "beats": src["beats"], "meta": pointer_meta}
+
+    m = re.fullmatch(r"(.+)_\d+", src_name)
+    prefix = m.group(1) if m else (re.search(r"^clips/([^/]+)/", src["clips"][0]).group(1) if src["clips"] else "remix")
+
+    base = dict(clips=src["clips"], clips_dir=None, sound=None, cookies=None, start=None, preset=src.get("preset") or "tight",
+                sync=bool(src.get("sync")), first=src.get("first"), story=None, random=False, hero=src.get("hero"),
+                exclude=[str(x) for x in excluded], shuffle=False, seed=None, length=src.get("length") or 30)
+    recipes = {
+        "hook": (same, dict(length=8, preset="tight", first=strongest, random=True, seed=seed0 + 11)),
+        "sound": (alts[0] if alts else same,
+                  dict(preset="loose", story=",".join(map(str, src["story"])) if src.get("story") else None,
+                       random=bool(src.get("random")) or not src.get("story"), seed=seed0 + 1)),
+        "reorder": (same, dict(length=15, first=other_opener, random=True, seed=seed0 + 23)),
+        "long": (alts[1] if len(alts) > 1 else (alts[0] if alts else same),
+                 dict(length=30, preset="chill", first=least_first[0], story=",".join(map(str, least_first)), random=False, seed=seed0 + 5)),
+    }
+    if not alts:
+        print("note: no other sound in sound/ — the 'sound' and 'long' remixes keep the source's sound (add one with `sound <link>`)", file=sys.stderr)
+
+    def fit_start(snd: dict, length: float) -> float:
+        """The sound's suggested start, unless the video would not fit before the sound ends
+        (a drop near the end would leave a 6 s video) — then as late as the length allows."""
+        info = load_json(ROOT / snd["beats"])
+        s, d = float(info.get("suggested_start", 0.0)), float(info["duration"])
+        return round(s if d - s >= length - 0.5 else max(0.0, d - length), 3)
+
+    made: list[str] = []
+    for kind in only:
+        snd, over = recipes[kind]
+        over["start"] = fit_start(snd, float(over.get("length", base["length"])))
+        name = next_name(prefix)
+        CUR = name
+        save_json(PROJECTS / f"{name}.sound.json", {"sound": snd["sound"], "beats": snd["beats"], "meta": snd.get("meta", {})})
+        print(f"\n=== {name}: {kind} remix of {src_name} — {REMIX_RECIPES[kind]}")
+        cmd_plan(argparse.Namespace(**{**base, **over}))
+        project = load_project()
+        project.update({"remix_of": src_name, "remix": kind, "caption": src.get("caption")})
+        save_project(project)
+        cmd_board(argparse.Namespace())
+        if args.render:
+            cmd_render(argparse.Namespace(draft=False, name=None, no_hwaccel=False, verbose=False))
+        made.append(name)
+    CUR = src_name
+    print(f"\nremixes of {src_name}: {' '.join(made)}" + ("" if args.render else f"\nnext: uv run beatcut.py -p {made[0]} render   (each one)"))
+    print(f"REMIXES: {' '.join(made)}")
+
+
 # -------------------------------------------------------------------- show
 
 def show(project: dict, clips: list[dict]) -> None:
@@ -1039,6 +1166,8 @@ def show(project: dict, clips: list[dict]) -> None:
     hero_id = project.get("hero")
     cap = f'"{project["caption"]}"' if project.get("caption") else "none"
     extras = []
+    if project.get("remix_of"):
+        extras.append(f"{project.get('remix', 'remix')} remix of {project['remix_of']}")
     if project.get("first"):
         extras.append(f"opens on clip {project['first']}")
     if project.get("story"):
@@ -1624,6 +1753,12 @@ def main() -> None:
     s.add_argument("--shuffle", action="store_true", help="random clip order instead of longest-to-longest (no --story)")
     s.add_argument("--seed", type=int, default=None, help="vary the combination: jitters --story in-points / seeds --shuffle")
     s.set_defaults(fn=cmd_plan)
+
+    s = sub.add_parser("remix", help="four new videos from this video's clips (hook cut, another sound, reorder, long version), as projects <folder>_N tagged remix_of")
+    s.add_argument("--render", action="store_true", help="render each one too (~1 min each)")
+    s.add_argument("--sounds", nargs="*", metavar="MP3", help="sounds to use for the 'sound' and 'long' remixes (default: the pool minus the source's)")
+    s.add_argument("--only", metavar="KINDS", help="a subset, e.g. hook,sound")
+    s.set_defaults(fn=cmd_remix)
 
     sub.add_parser("show", help="print the edit").set_defaults(fn=cmd_show)
     sub.add_parser("board", help="storyboard, one frame per slot -> out/_board.jpg").set_defaults(fn=cmd_board)

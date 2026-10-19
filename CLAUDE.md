@@ -80,6 +80,31 @@ shorter than `--length` plays to its END (meme sounds keep the punchline in the 
 `frames <clip…>` writes a timestamped frame sheet per clip (`out/_frames_<clip>.jpg`) — the
 way to SEE a long take before deciding the story.
 
+## Remix — four new posts from a video that worked (2026-10-19)
+
+`-p dayN_V remix [--render] [--only hook,sound] [--sounds a.mp3 b.mp3]` cuts FOUR new projects
+from the source's clips, each different enough to be a new post, named with the next free
+`dayN_K` numbers and tagged `remix_of: dayN_V` + `remix: <kind>` in their project.json
+(`plan` keeps both tags when a remix is re-planned; `show` prints "hook remix of dayN_V"):
+- **hook** — 8 s, tight, random angles, opens on the strongest shot (the drop's clip, else
+  the hero, else the source's opener, else the most-used clip).
+- **sound** — the source's story (or random) on ANOTHER sound from the pool, loose pace.
+- **reorder** — 15 s, random angles with a new seed, a different opener (the source's slot 2).
+- **long** — 30 s, chill, a story of the clips the source used LEAST, first; on a second
+  other sound when the pool has one.
+Other sounds = `--sounds` in order, else `sound/*.mp3` minus the source's, the ones with a
+clear drop first, then newest. The start in each sound is the suggested start unless the
+video would not fit before the sound ends (a drop near the end gave a 6 s video) — then as
+late as the length allows. Each remix keeps the source's on-screen hook; the hook, caption
+and opener are what "Remix with Claude" then changes. Seeds derive from the source's
+(+11, +1, +23, +5) so a second `remix` of the same video gives the same four. The last line
+is `REMIXES: name1 name2 name3 name4`. In the app: **Remix ×4** on a video page runs
+`remix --render` as one job (`POST /api/projects/<name>/remix`, `{only, render}`) and comes
+back to the source, whose page shows the family (`RemixStrip`: "hook cut of X" on a remix,
+the four cards with their status on the source); feed cards carry a "remix of X" tag.
+**Remix with Claude** is an ask: run `remix`, read each board, improve openers/sounds,
+`caption` a different hook line on each, write each post caption, render all four.
+
 ## CapCut export — the edit as an editable project (2026-10-07)
 
 `-p dayN_V export [--open]` writes the SAME edit `render` would bake (identical frame math)
@@ -213,6 +238,7 @@ sits in several slots — then read `show` and pick the slot number yourself.
 | "start the song at the drop" | `start <seconds>` (rebuilds) |
 | "fewer cuts" / "more cuts" | `density calm=8 hype=4` / `density hype=1` (rebuilds) |
 | "different clips in the same cuts" | `shuffle` |
+| "remix this" / "four more posts from this" | `remix --render` (see Remix) |
 | "put text on it: …" | `caption "…"` (`caption none` clears) |
 | always after an edit | `render` — then tell them `out/final.mp4` is updated |
 
@@ -367,6 +393,8 @@ asks, each a new thread with the page's context:
 - **Let Claude pick** in the /new sound step (`new/SoundStep.tsx`, above).
 - **Ask Claude about this shot** in the slot card (`SlotCard.tsx`): "Look at slot n
   (clip c at Xs) on the storyboard… suggest one change".
+- **Remix with Claude** in the toolbar (`EditPanel.tsx`): run `remix`, tune the four, hooks,
+  captions, render (see Remix above).
 The agent's appended system prompt (`lib/agent.ts`) says these arrive from buttons and
 may be terse, that a Fix-it line is an edit to the open project (run it, board,
 render), that a shot question must be checked on the storyboard first, and that the
