@@ -1376,10 +1376,16 @@ GENERIC_AVATAR = ("candid phone photo of a friendly guy in his early twenties in
 
 
 def hf_headers() -> dict:
-    kid, secret = web_env("HIGGSFIELD_KEY_ID"), web_env("HIGGSFIELD_KEY_SECRET")
+    """Higgsfield auth: HF_KEY as the console hands it out (key-id:key-secret), or the
+    pair HIGGSFIELD_KEY_ID / HIGGSFIELD_KEY_SECRET — in web/.env.local, never printed."""
+    hf = web_env("HF_KEY") or web_env("HF_CREDENTIALS")
+    if hf and ":" in hf:
+        kid, secret = hf.split(":", 1)
+    else:
+        kid, secret = web_env("HIGGSFIELD_KEY_ID"), web_env("HIGGSFIELD_KEY_SECRET")
     if not kid or not secret:
-        die("HIGGSFIELD_KEY_ID / HIGGSFIELD_KEY_SECRET are not set in web/.env.local (console: open.higgsfield.ai → API keys)")
-    return {"Authorization": f"Key {kid}:{secret}", "Content-Type": "application/json", "Accept": "application/json"}
+        die("no Higgsfield key: put HF_KEY=key-id:key-secret in web/.env.local (console: open.higgsfield.ai → API keys)")
+    return {"Authorization": f"Key {kid.strip()}:{secret.strip()}", "Content-Type": "application/json", "Accept": "application/json"}
 
 
 def hf_json(url: str, body: dict | None = None) -> dict:
