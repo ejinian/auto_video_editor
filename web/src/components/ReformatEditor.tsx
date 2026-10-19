@@ -8,11 +8,12 @@ import { useJob } from "@/components/useJob";
 import { mb, mediaUrl } from "@/lib/format";
 import type { ProjectDetail } from "@/lib/types";
 
-const KIND_LABEL: Record<string, string> = { hook: "Hook line", narrated: "Narrated", reply: "Comment reply" };
+const KIND_LABEL: Record<string, string> = { hook: "Hook line", narrated: "Narrated", reply: "Comment reply", reaction: "Reacting avatar" };
 const KIND_HINT: Record<string, string> = {
   hook: "the same video with a new line on screen — the cheapest second run a reel can get",
   narrated: "two or three lines said over the footage in the TikTok voice, each shown as it is said; the original audio is ducked under it",
   reply: "the video as the answer to a comment, with the comment bubble on top — paste a real comment from your post",
+  reaction: "your character reacts in the corner, silent: short clips of it (nod, shocked, laugh, point, think) switched at the moments that earn a reaction; the original audio stays",
 };
 
 /** The copy of a reformat: the one thing that makes it a different post. Save & render
@@ -28,6 +29,8 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
   const [voice, setVoice] = useState(pr.voice ?? "eleven");
   const [comment, setComment] = useState(pr.comment?.text ?? "");
   const [user, setUser] = useState(pr.comment?.user ?? "");
+  const [avatar, setAvatar] = useState(pr.avatar ?? "");
+  const [reactions, setReactions] = useState((pr.reactions ?? []).map((r) => `${r.t}:${r.kind}`).join(", "));
   const [asking, setAsking] = useState<"idle" | "running" | "done" | "error">("idle");
   const params = useSearchParams();
   const fired = useRef(false);
@@ -40,7 +43,8 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
     `${siblings.map((p) => `${p.name} (${p.reformat})`).join(", ")} are reformats of the posted video ${src} (${d.realLength.toFixed(0)} s): the same cut, three framings. ` +
     `Read its frame sheet out/${folder}/_frames_${stem}.jpg (and listen to nothing — judge from the frames and the sound's title). Then write, in the Young Vibas voice: ` +
     `a hook line for the hook reformat (\`reformat -p <name> --hook "…"\`); 2-3 narration lines for the narrated one in the TikTok voice-over style, the first a reaction to what is on screen (\`reformat -p <name> --lines "first|second|third"\`); ` +
-    `and for the reply one the comment it answers — the user's own comment if one is already set on it, otherwise the question a viewer would ask, with no username (\`reformat -p <name> --comment "…"\`). ` +
+    `and for the reply one the comment it answers — the user's own comment if one is already set on it, otherwise the question a viewer would ask, with no username (\`reformat -p <name> --comment "…"\`); ` +
+    `if there is a reaction one, pick 3-5 moments and what the avatar does at each from its clips (nod, shocked, laugh, point, think — \`avatar --list\` shows which exist): \`reformat -p <name> --reactions "0:nod,2.4:shocked,6:laugh"\`. ` +
     `Run /ig-human on the lines first. Add --render to each reformat command so it renders, then write each one's post caption with /ig-caption into its caption file. End with \`REFORMATS: ${siblings.map((p) => p.name).join(" ")}\`.`;
 
   const writeWithClaude = async () => {
@@ -66,6 +70,7 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
     if (kind === "hook") args.hook = hook.trim();
     if (kind === "narrated") args.lines = lines.split("\n").map((l) => l.trim()).filter(Boolean).join("|");
     if (kind === "reply") { args.comment = comment.trim(); args.user = user.replace(/^@/, "").trim(); }
+    if (kind === "reaction") { args.reactions = reactions.split(/[,\n]/).map((x) => x.trim()).filter(Boolean).join(","); if (avatar.trim()) args.avatar = avatar.trim(); }
     run(`/api/projects/${encodeURIComponent(d.name)}/run`, { cmd: "reformat", args });
   };
 
@@ -121,10 +126,22 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
             </div>
           </div>
         )}
+        {kind === "reaction" && (
+          <div className="grid gap-3" style={{ gridTemplateColumns: "1fr auto" }}>
+            <div>
+              <label className="label">When the avatar does what <span className="text-muted">(seconds:reaction, comma separated; empty = spread evenly)</span></label>
+              <input className="input" value={reactions} onChange={(e) => setReactions(e.target.value)} placeholder="0:nod, 2.5:shocked, 6:laugh" />
+            </div>
+            <div>
+              <label className="label">Avatar</label>
+              <input className="input !w-36" value={avatar} onChange={(e) => setAvatar(e.target.value)} placeholder="first one" title="a character under clips/_avatar/ (avatar --list)" />
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-2 flex-wrap">
           <button className="btn" disabled={busy} onClick={save}>Save &amp; render</button>
           <button className="btn sec" disabled={asking === "running"} onClick={writeWithClaude} title="a new chat: Claude reads the frames, writes the hook, the narration and the comment for all three reformats, renders them and writes their captions">
-            {asking === "running" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} {asking === "running" ? "Claude is writing…" : "Write all three with Claude"}
+            {asking === "running" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} {asking === "running" ? "Claude is writing…" : "Write them all with Claude"}
           </button>
           {asking === "done" && <span className="text-acc text-sm">written — reload if the page has not caught up</span>}
           {asking === "error" && <span className="text-bad text-sm">Claude did not finish — see the panel</span>}

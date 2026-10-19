@@ -30,6 +30,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import textwrap
 import urllib.error
 import urllib.parse
@@ -1357,7 +1358,146 @@ REFORMATS = {
     "hook": "the same video with a new hook line on screen",
     "narrated": "a voice-over in the TikTok text-to-speech style (2-3 lines, each shown as it is said; the original audio ducked under it)",
     "reply": "the video as the answer to a comment, with the comment bubble on top",
+    "reaction": "an avatar reacting in the corner, silent (short image-to-video clips of the character, switched at the moments that earn a reaction; the original audio untouched)",
 }
+AVATARS = CLIPS / "_avatar"   # clips/_avatar/<name>/<reaction>.mp4 — generated once, reused by every reaction reformat
+REACTIONS = {   # what the avatar does; one short clip per key, image-to-video from the character's picture
+    "nod": "the person nods slowly in agreement, small smile, looking at the camera, subtle natural motion, same framing",
+    "shocked": "the person's eyes go wide and jaw drops in shock, hands come up to the face, looking at the camera, same framing",
+    "laugh": "the person bursts out laughing, head tilts back a little, genuinely amused, looking at the camera, same framing",
+    "point": "the person leans in and points at the viewer, raised eyebrows, 'see, told you' expression, same framing",
+    "think": "the person squints, rubs their chin, thinking hard, then raises an eyebrow, looking at the camera, same framing",
+}
+HF_IMAGE_TO_VIDEO = "https://api.higgsfield.ai/kling-video/v3.0/std/image-to-video"
+
+
+def hf_headers() -> dict:
+    kid, secret = web_env("HIGGSFIELD_KEY_ID"), web_env("HIGGSFIELD_KEY_SECRET")
+    if not kid or not secret:
+        die("HIGGSFIELD_KEY_ID / HIGGSFIELD_KEY_SECRET are not set in web/.env.local (console: open.higgsfield.ai → API keys)")
+    return {"Authorization": f"Key {kid}:{secret}", "Content-Type": "application/json", "Accept": "application/json"}
+
+
+def hf_json(url: str, body: dict | None = None) -> dict:
+    req = urllib.request.Request(url, data=json.dumps(body).encode() if body is not None else None, headers=hf_headers(), method="POST" if body is not None else "GET")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            return json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        die(f"Higgsfield refused ({e.code}): {e.read()[:400].decode('utf-8', 'replace')}")
+
+
+def image_ref(image: str) -> str:
+    """What Higgsfield gets as `image_url`: a public https URL as is; a local file as a
+    data URL (accepted by the API's `uri` field; if it ever is not, host the picture
+    somewhere public — the TikTok profile picture's URL works)."""
+    if re.match(r"https?://", image):
+        return image
+    p = Path(image).expanduser()
+    p = p if p.is_absolute() else ROOT / p
+    if not p.exists():
+        die(f"no such image: {image}")
+    import base64
+    mime = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}.get(p.suffix.lower(), "image/png")
+    return f"data:{mime};base64,{base64.b64encode(p.read_bytes()).decode()}"
+
+
+def avatar_clip(name: str, reaction: str, image: str, seconds: int = 5) -> Path:
+    """One reaction clip of the character via Higgsfield image-to-video (Kling 3.0 std,
+    sound off), polled until done and downloaded to clips/_avatar/<name>/<reaction>.mp4."""
+    out = AVATARS / name / f"{reaction}.mp4"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    body = {"image_url": image_ref(image), "prompt": REACTIONS[reaction] + ", vertical, no text, no captions", "duration": seconds, "sound": "off", "cfg_scale": 0.5}
+    h = hf_json(HF_IMAGE_TO_VIDEO, body)
+    status_url = h.get("status_url")
+    if not status_url:
+        die(f"Higgsfield gave no status url: {json.dumps(h)[:300]}")
+    print(f"  {name}/{reaction}: queued ({h.get('request_id')})…", flush=True)
+    for _ in range(240):
+        time.sleep(5)
+        st = hf_json(status_url)
+        state = str(st.get("status", "")).lower()
+        if state == "completed":
+            url = (st.get("video") or {}).get("url")
+            if not url:
+                die(f"Higgsfield finished but gave no video url: {json.dumps(st)[:300]}")
+            data, _ = http_get(url, binary=True, timeout=300)
+            out.write_bytes(data)
+            print(f"  {name}/{reaction}: {len(data) / 1e6:.1f} MB → {rel(out)}")
+            return out
+        if state in ("failed", "cancelled", "canceled", "error"):
+            die(f"Higgsfield failed the {reaction} clip: {json.dumps(st)[:400]}")
+    die(f"Higgsfield took too long on the {reaction} clip (still {state})")
+
+
+def avatars() -> dict[str, list[str]]:
+    """{name: [reactions that exist]} for every character under clips/_avatar/."""
+    out: dict[str, list[str]] = {}
+    if AVATARS.is_dir():
+        for d in sorted(AVATARS.iterdir()):
+            if d.is_dir() and not d.name.startswith("."):
+                out[d.name] = sorted(p.stem for p in d.glob("*.mp4"))
+    return out
+
+
+def cmd_avatar(args) -> None:
+    """`avatar NAME --image URL|FILE [--reactions nod,shocked,laugh]` generates the
+    character's reaction clips once (Higgsfield, ~$0.4 each); `avatar --list` shows them."""
+    if args.list or not args.name:
+        have = avatars()
+        if not have:
+            print("no avatars yet — avatar <name> --image <url or file> makes one (needs HIGGSFIELD_KEY_ID/SECRET in web/.env.local)")
+        for n, rs in have.items():
+            print(f"{n}: {', '.join(rs) or '(no clips)'}")
+        return
+    name = re.sub(r"[^A-Za-z0-9_-]+", "_", args.name).strip("_").lower()
+    want = [x.strip() for x in (args.reactions or "").split(",") if x.strip()] or ["nod", "shocked", "laugh", "point"]
+    for r in want:
+        if r not in REACTIONS:
+            die(f"unknown reaction '{r}' — have: {', '.join(REACTIONS)}")
+    have = avatars().get(name, [])
+    todo = [r for r in want if r not in have or args.redo]
+    if not todo:
+        print(f"{name} already has {', '.join(want)} — --redo to generate again")
+        return
+    if not args.image:
+        die("--image <public url or file> is needed to make clips")
+    print(f"making {len(todo)} reaction clip{'s' if len(todo) != 1 else ''} of {name} ({', '.join(todo)}) with Higgsfield…")
+    for r in todo:
+        avatar_clip(name, r, args.image)
+    print(f"AVATAR: {name} {' '.join(sorted(set(have) | set(todo)))}")
+
+
+def parse_reactions(spec: str | None, avatar: str, dur: float) -> list[dict]:
+    """"0:nod,2.5:shocked,6:laugh" → [{t, kind}], sorted; empty → the avatar's reactions
+    spread evenly over the video."""
+    have = avatars().get(avatar) or []
+    if not have:
+        die(f"avatar '{avatar}' has no clips — avatar {avatar} --image … first (or avatar --list)")
+    out = []
+    for item in [x.strip() for x in (spec or "").split(",") if x.strip()]:
+        if ":" not in item:
+            die(f"reaction '{item}' needs a time: 2.5:shocked")
+        t, kind = item.split(":", 1)
+        kind = kind.strip()
+        if kind not in have:
+            die(f"avatar '{avatar}' has no '{kind}' clip (has: {', '.join(have)})")
+        out.append({"t": round(float(t), 2), "kind": kind})
+    if not out:
+        n = max(1, min(len(have), int(dur // 3)))
+        out = [{"t": round(i * dur / n, 2), "kind": have[i % len(have)]} for i in range(n)]
+    out.sort(key=lambda r: r["t"])
+    if out[0]["t"] > 0:
+        out.insert(0, {"t": 0.0, "kind": out[0]["kind"]})
+    return out
+
+
+def pip_mask(size: int, path: Path) -> None:
+    from PIL import Image, ImageDraw
+    m = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(m).rounded_rectangle((0, 0, size - 1, size - 1), radius=int(size * 0.18), fill=255)
+    m.save(path)
+
 DEFAULT_VOICE = "Samantha"   # macOS `say`; the closest built-in to the TikTok voice
 ELEVEN_MODEL = "eleven_multilingual_v2"
 
@@ -1487,6 +1627,9 @@ def reformat_summary(project: dict) -> str:
     if kind == "narrated":
         lines = project.get("lines") or []
         return f'{len(lines)} line{"s" if len(lines) != 1 else ""} ({project.get("voice") or default_voice()}): ' + (" | ".join(lines) if lines else "(none yet)")
+    if kind == "reaction":
+        rs = project.get("reactions") or []
+        return f'avatar {project.get("avatar") or "(none)"}: ' + (", ".join(f"{r['t']}:{r['kind']}" for r in rs) if rs else "(spread evenly)")
     c = project.get("comment")
     return f'comment: {c.get("text") if c else "(none yet)"}' + (f' (@{c["user"]})' if c and c.get("user") else "")
 
@@ -1544,6 +1687,40 @@ def render_reformat(project: dict, args) -> None:
             caption_png(line, w, h, png, y_frac=y_lines, size_frac=0.042)
             overlays.append((png, start, start + dl + 0.15))
             t = start + dl + 0.25
+    elif kind == "reaction":
+        avatar = project.get("avatar") or next(iter(avatars()), None)
+        if not avatar:
+            die("no avatar yet — avatar <name> --image <url> makes one")
+        reactions = parse_reactions(",".join(f"{r['t']}:{r['kind']}" for r in (project.get("reactions") or [])), avatar, dur)
+        size = int(w * 0.38)
+        mask = work / "mask.png"
+        pip_mask(size, mask)
+        cmd += ["-loop", "1", "-t", f"{dur:.3f}", "-i", str(mask)]
+        mask_in = n_in
+        n_in += 1
+        filters.append(f"[{mask_in}:v]format=gray,scale={size}:{size},split={len(reactions)}" + "".join(f"[mk{i}]" for i in range(len(reactions))))
+        x, y = int(w * 0.045), int(h * 0.84) - size
+        pips: list[tuple[int, float, float]] = []
+        for i, r in enumerate(reactions):
+            t0 = r["t"]
+            t1 = reactions[i + 1]["t"] if i + 1 < len(reactions) else dur
+            if t1 - t0 < 0.2:
+                continue
+            clip = AVATARS / avatar / f"{r['kind']}.mp4"
+            cmd += ["-stream_loop", "-1", "-t", f"{t1 - t0 + 0.5:.3f}", "-i", str(clip)]
+            filters.append(
+                f"[{n_in}:v]fps={FPS},scale={size}:{size}:force_original_aspect_ratio=increase,crop={size}:{size},setsar=1,"
+                f"setpts=PTS-STARTPTS+{t0:.3f}/TB[p{i}];[p{i}][mk{i}]alphamerge[q{i}]"
+            )
+            pips.append((i, t0, t1))
+            n_in += 1
+        # the scaled source is [base] here; the avatar windows chain onto it and end as [v0]
+        filters[0] = filters[0].replace("[v0]", "[base]")
+        last_v = "base"
+        for j, (i, t0, t1) in enumerate(pips):
+            filters.append(f"[{last_v}][q{i}]overlay={x}:{y}:format=auto:eof_action=pass:enable='between(t,{t0:.3f},{t1:.3f})'[r{j}]")
+            last_v = f"r{j}"
+        filters.append(f"[{last_v}]null[v0]")
     # video: the source scaled, then each overlay (whole video, or a window)
     last = "v0"
     for i, (png, a, b) in enumerate(overlays):
@@ -1619,6 +1796,7 @@ def cmd_reformat(args) -> None:
     global CUR
     lines = [x.strip() for x in (args.lines or "").split("|") if x.strip()] if args.lines is not None else None
     comment = ({"text": args.comment.strip(), "user": (args.user or "").lstrip("@").strip() or None} if args.comment else None)
+    avatar_name = args.avatar or next(iter(avatars()), None)
 
     def apply_copy(project: dict) -> None:
         if args.hook is not None and project["reformat"] == "hook":
@@ -1628,6 +1806,11 @@ def cmd_reformat(args) -> None:
             project["lines"] = lines
         if comment is not None and project["reformat"] == "reply":
             project["comment"] = comment
+        if project["reformat"] == "reaction":
+            if args.avatar:
+                project["avatar"] = avatar_name
+            if args.reactions is not None:
+                project["reactions"] = parse_reactions(args.reactions, project.get("avatar") or avatar_name or "", float(project["length"]))
         if args.voice:
             project["voice"] = args.voice
 
@@ -1642,7 +1825,8 @@ def cmd_reformat(args) -> None:
             render_reformat(project, argparse.Namespace(draft=False, name=None, verbose=False))
         return
 
-    only = [x.strip() for x in (args.only or "").split(",") if x.strip()] or list(REFORMATS)
+    # the three framings, plus the reacting avatar when there is a character to react with
+    only = [x.strip() for x in (args.only or "").split(",") if x.strip()] or [k for k in REFORMATS if k != "reaction" or avatar_name]
     for k in only:
         if k not in REFORMATS:
             die(f"unknown reformat '{k}' — have: {', '.join(REFORMATS)}")
@@ -1667,6 +1851,7 @@ def cmd_reformat(args) -> None:
             "sound": pointer["sound"], "beats": pointer["beats"], "audio_start": 0.0, "length": round(dur, 3),
             "density": dict(DEFAULT_DENSITY), "excluded": [], "hero": None, "caption": None, "cuts": [], "slots": [],
             "hook": None, "lines": [], "comment": None, "voice": args.voice or default_voice(),
+            "avatar": avatar_name if kind == "reaction" else None, "reactions": [],
         }
         apply_copy(project)
         save_project(project)
@@ -2310,8 +2495,17 @@ def main() -> None:
     s.add_argument("--voice", metavar="VOICE", help=f"the narration voice: eleven (the ElevenLabs voice in web/.env.local, the default when a key is set), eleven:<voice_id>, or a macOS voice name (default {DEFAULT_VOICE} without a key; `say -v '?'` lists them)")
     s.add_argument("--comment", metavar="TEXT", help="the comment the video answers (reply reformat)")
     s.add_argument("--user", metavar="HANDLE", help="who wrote the comment, if real (shown as 'Reply to @user')")
+    s.add_argument("--avatar", metavar="NAME", help="the character for the reaction reformat (default: the first under clips/_avatar/)")
+    s.add_argument("--reactions", metavar="T:KIND,…", help="when the avatar does what, e.g. 0:nod,2.5:shocked,6:laugh (reaction reformat; default: spread evenly)")
     s.add_argument("--render", action="store_true", help="render too (each one that has its copy)")
     s.set_defaults(fn=cmd_reformat)
+    s = sub.add_parser("avatar", help="a character that reacts in the corner of a reaction reformat: generate its reaction clips once (Higgsfield image-to-video) — or --list")
+    s.add_argument("name", nargs="?")
+    s.add_argument("--image", metavar="URL|FILE", help="the character's picture (a public https url, or a file sent as a data url)")
+    s.add_argument("--reactions", metavar="KINDS", help=f"which clips to make (default nod,shocked,laugh,point; have: {', '.join(REACTIONS)})")
+    s.add_argument("--redo", action="store_true", help="generate again even if the clips exist")
+    s.add_argument("--list", action="store_true")
+    s.set_defaults(fn=cmd_avatar)
     s = sub.add_parser("shots", help="cut a finished video into its shots (scene detection) as clips in clips/<name>/")
     s.add_argument("video")
     s.add_argument("--into", metavar="FOLDER", help="clips folder name (default: the file's name)")

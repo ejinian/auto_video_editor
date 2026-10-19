@@ -21,7 +21,9 @@ export interface Project {
   remix?: string | null;
   /** A reformat (set by `reformat`): the posted video kept as is, plus one framing. */
   kind?: "reformat";
-  reformat?: "hook" | "narrated" | "reply";
+  reformat?: "hook" | "narrated" | "reply" | "reaction";
+  avatar?: string | null;
+  reactions?: Array<{ t: number; kind: string }>;
   source?: string;
   hook?: string | null;
   lines?: string[];

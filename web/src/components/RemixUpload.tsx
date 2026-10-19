@@ -81,7 +81,7 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
         </div>
         <div className="mb-4">
           <Seg<"reformat" | "recut"> ariaLabel="what to make" value={mode} onChange={setMode} options={[
-            { value: "reformat", label: "Reformat ×3", sub: "the same cut, three framings: a new hook line, a TikTok-voice narration, a comment reply — Claude writes the copy" },
+            { value: "reformat", label: "Reformat", sub: "the same cut, new framings: a hook line, a narration in your voice, a comment reply, and your avatar reacting in the corner once you have one — Claude writes the copy" },
             { value: "recut", label: "Re-cut ×4", sub: "split into shots and cut again: hook cut, another sound, reorder, long version — for raw footage, not a finished reel" },
           ]} />
         </div>
