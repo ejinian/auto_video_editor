@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CaptionEditor } from "@/components/CaptionEditor";
 import { ClipGrid } from "@/components/ClipGrid";
 import { AllCommands, EditToolbar } from "@/components/EditPanel";
+import { ReformatEditor } from "@/components/ReformatEditor";
 import { RemixStrip } from "@/components/RemixStrip";
 import { StatusTag, Tag } from "@/components/Tag";
 import { VideoEditor } from "@/components/VideoEditor";
@@ -39,7 +40,7 @@ export default async function Video({ params }: { params: Promise<{ name: string
       </h1>
       <p className="lede">
         {d.sound ? <>{d.sound.title}{d.sound.author ? ` — ${d.sound.author}` : ""}{d.sound.tempo ? ` · ${d.sound.tempo.toFixed(0)} bpm` : ""}</> : pr.sound}
-        {" · "}{d.realLength.toFixed(1)} s · {d.slots.length} shots · {rhythm}{extras ? ` · ${extras}` : ""}
+        {" · "}{d.realLength.toFixed(1)} s{pr.kind === "reformat" ? <> · <b>{pr.reformat} reformat</b> of <code>{pr.source?.split("/").pop()}</code></> : <> · {d.slots.length} shots · {rhythm}{extras ? ` · ${extras}` : ""}</>}
         {" · "}hook: {pr.caption ? <i>{pr.caption}</i> : "none"}
         {d.folder && <> · shoot <Link href={`/shoot/${encodeURIComponent(d.folder)}`}>{d.folder}</Link></>}
       </p>
@@ -54,7 +55,7 @@ export default async function Video({ params }: { params: Promise<{ name: string
       )}
 
       <h2>Edit</h2>
-      <VideoEditor d={d} />
+      {pr.kind === "reformat" ? <ReformatEditor d={d} /> : <VideoEditor d={d} />}
 
       <div className="mt-4 space-y-3">
         <details className="card !p-0 overflow-hidden">

@@ -39,6 +39,7 @@ function Cmd({ label, hint, fields, cmd, onRun, busy, submit = "Go", inline = fa
 /** The toolbar: render / storyboard / CapCut / frame sheets / variation / delete on one
  *  row, the whole-video settings (hook, length, density) on a second. */
 export function EditToolbar({ d, sounds }: { d: ProjectDetail; sounds: SoundInfo[] }) {
+  const reformat = d.project.kind === "reformat";
   const { run, busy, error } = useJob();
   const router = useRouter();
   const name = d.name;
@@ -59,24 +60,24 @@ export function EditToolbar({ d, sounds }: { d: ProjectDetail; sounds: SoundInfo
       <div className="flex flex-wrap gap-2 items-center">
         <button className={`btn ${d.stale || !d.rendered ? "warn" : "sec"}`} disabled={busy} onClick={() => onRun("render", {})}>Render{d.stale ? " (edited)" : ""}</button>
         <button className="btn sec" disabled={busy} onClick={() => onRun("board", {})} title="rebuild the storyboard from the current plan">Storyboard</button>
-        <button className="btn sec" disabled={busy} onClick={() => { setExportHint(true); onRun("export-open", {}); }} title="writes the edit as a CapCut project (every cut still editable) and opens CapCut inside it. Quit CapCut first if it's open.">Open in CapCut</button>
+        {!reformat && <><button className="btn sec" disabled={busy} onClick={() => { setExportHint(true); onRun("export-open", {}); }} title="writes the edit as a CapCut project (every cut still editable) and opens CapCut inside it. Quit CapCut first if it's open.">Open in CapCut</button>
         <button className="btn sec" disabled={busy} onClick={() => onRun("frames", {})} title="timestamped frame sheets for every clip in this video">Frame sheets</button>
         <button className={`btn sec ${varOpen ? "!border-acc" : ""}`} onClick={() => setVarOpen(!varOpen)} title="the same clips and settings with the next seed, as a new video">Make variation</button>
         <button className="btn sec" disabled={busy} onClick={() => run(`/api/projects/${encodeURIComponent(name)}/remix`, {})} title="four new videos from these clips, rendered: a hook cut, the same story on another sound, a reorder, a long version (remix --render, ~5 min)"><Shuffle size={14} /> Remix ×4</button>
         <button className="btn sec" onClick={() => void askClaude({
           prompt: `Remix ${name}: run \`uv run beatcut.py -p ${name} remix\` (four projects tagged remix_of: hook cut, another sound, reorder, long version — no render). Then read each new project's storyboard and improve it where it helps (a better opener or sound with \`plan\` again, or \`set\`/\`swap\`), give each a different on-screen hook line with \`caption\`, write each one's post caption with /ig-caption + /ig-human into its caption file, and render all four. End with the line \`REMIXES: <name> <name> <name> <name>\`.`,
           send: true, newThread: true, from: `Remix · ${name}`, context: `project:${name}`,
-        })} title="a new chat: Claude runs remix, then tunes each of the four, writes their hooks and captions, and renders"><Sparkles size={14} /> Remix with Claude</button>
+        })} title="a new chat: Claude runs remix, then tunes each of the four, writes their hooks and captions, and renders"><Sparkles size={14} /> Remix with Claude</button></>}
         <span className="flex-1" />
         {!confirmDelete
           ? <button className="btn bad sm" onClick={() => setConfirmDelete(true)}>Delete video</button>
           : <span className="flex items-center gap-2 text-sm"><span className="text-bad">Delete {name}, its renders and final/{name}.mp4?</span><button className="btn bad sm" onClick={del}>Yes, delete</button><button className="btn sec sm" onClick={() => setConfirmDelete(false)}>No</button></span>}
       </div>
-      <div className="flex flex-wrap gap-x-5 gap-y-2 items-center">
+      {!reformat && <div className="flex flex-wrap gap-x-5 gap-y-2 items-center">
         <CaptionCmd current={d.project.caption ?? ""} busy={busy} onRun={onRun} />
         <Cmd inline label="Length" hint="seconds; rebuilds the whole edit" cmd="length" busy={busy} onRun={onRun} fields={[{ k: "value", ph: "s", required: true, type: "number", initial: String(Math.round(d.project.length)) }]} submit="Change" />
         <Cmd inline label="Density" hint="rebuilds the whole edit" cmd="density" busy={busy} onRun={onRun} fields={[{ k: "value", ph: "", options: ["tight", "loose", "chill"], initial: d.project.preset ?? "tight" }]} submit="Change" />
-      </div>
+      </div>}
       {exportHint && <div className="text-muted text-sm">If CapCut was open the export stops; quit CapCut and press again. The project lands at the top of CapCut&apos;s list and re-exporting replaces it.</div>}
       {error && <div className="text-bad text-sm">{error}</div>}
 

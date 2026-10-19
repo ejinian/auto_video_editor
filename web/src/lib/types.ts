@@ -19,6 +19,14 @@ export interface Project {
   /** Set by `remix`: the video this one was cut from, and which recipe (hook / sound / reorder / long). */
   remix_of?: string | null;
   remix?: string | null;
+  /** A reformat (set by `reformat`): the posted video kept as is, plus one framing. */
+  kind?: "reformat";
+  reformat?: "hook" | "narrated" | "reply";
+  source?: string;
+  hook?: string | null;
+  lines?: string[];
+  voice?: string;
+  comment?: { text: string; user?: string | null } | null;
   cuts: number[];
   _drops?: Array<{ time: number } | number>;
   slots: Array<{ clip: number; in: number; reused?: boolean }>;
@@ -94,6 +102,7 @@ export interface ProjectSummary {
   posted: PostedInfo | null;
   remixOf: string | null;
   remix: string | null;
+  reformat: string | null;
 }
 
 export interface SlotRow {
@@ -135,6 +144,8 @@ export interface ProjectDetail {
   remixOf: string | null;
   remix: string | null;
   remixes: ProjectSummary[];
+  /** For a reformat: the other reformats of the same posted video (this one included). */
+  reformats: ProjectSummary[];
 }
 
 export interface JobInfo {

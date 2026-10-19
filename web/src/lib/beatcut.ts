@@ -64,6 +64,11 @@ export function isVideo(name: string): boolean {
 }
 
 /** `dayN_V` → `dayN`; `cle_1` → `cle`; `lisa_v1` → `lisa` (matches beatcut.py's out_dir). */
+/** Is there a clips/<folder>/ already (any file, hidden ones included)? */
+export function clipsFolderExists(folder: string): boolean {
+  return exists(path.join(CLIPS, folder));
+}
+
 export function projectFolder(name: string): string | null {
   const m = name.match(/^(.+)_\d+$/);
   return m ? m[1] : null;
@@ -300,7 +305,22 @@ async function extractFrame(src: string, t: number, dest: string): Promise<strin
  */
 export async function slotThumb(name: string, n: number): Promise<string | null> {
   const pr = loadProject(name);
-  if (!pr || n < 1 || n > pr.slots.length) return null;
+  if (!pr) return null;
+  if (pr.kind === "reformat") {
+    // a reformat has no slots: its poster is a frame of the render (overlay and all) when
+    // there is one, else of the source video; cached by the file's mtime
+    if (n !== 1 || !pr.source) return null;
+    const mp4 = path.join(projectOut(name), `${name}.mp4`);
+    const from = exists(mp4) ? mp4 : path.join(ROOT, pr.source);
+    if (!exists(from)) return null;
+    const dir = path.join(projectOut(name), ".slots");
+    const dest = path.join(dir, `${name}.rf.${Math.round(stat(from)?.mtimeMs ?? 0)}.jpg`);
+    if (exists(dest)) return dest;
+    const got = await extractFrame(from, Math.min(1.2, pr.length / 2), dest);
+    if (got) for (const f of fs.readdirSync(dir)) { if (f.startsWith(`${name}.rf.`) && path.join(dir, f) !== dest) { try { fs.rmSync(path.join(dir, f)); } catch { /* cache */ } } }
+    return got;
+  }
+  if (n < 1 || n > pr.slots.length) return null;
   const s = pr.slots[n - 1];
   const dur = pr.cuts[n] - pr.cuts[n - 1];
   const clipRel = pr.clips[s.clip - 1];
@@ -450,6 +470,7 @@ export async function projects(): Promise<Array<ProjectSummary & { soundPath: st
       posted: postedAll[name] ?? null,
       remixOf: data.remix_of ?? null,
       remix: data.remix ?? null,
+      reformat: data.kind === "reformat" ? (data.reformat ?? null) : null,
     });
   }
   out.sort((a, b) => b.mtime - a.mtime);
@@ -549,6 +570,8 @@ export async function projectDetail(name: string): Promise<ProjectDetail | null>
     .map((f) => ({ clip: f.clip, path: rel(f.path) }));
   const ptr = projectSoundPointer(name);
   const sound = soundByPath(ptr?.sound ?? pr.sound);
+  const all = await projects();
+  const byName = (a: ProjectSummary, b: ProjectSummary) => a.name.localeCompare(b.name, undefined, { numeric: true });
   return {
     name,
     project: pr,
@@ -573,7 +596,8 @@ export async function projectDetail(name: string): Promise<ProjectDetail | null>
     posted: readPosted()[name] ?? null,
     remixOf: pr.remix_of ?? null,
     remix: pr.remix ?? null,
-    remixes: (await projects()).filter((p) => p.remixOf === name).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
+    remixes: all.filter((p) => p.remixOf === name).sort(byName),
+    reformats: pr.kind === "reformat" ? all.filter((p) => p.reformat && projectFolder(p.name) === projectFolder(name)).sort(byName) : [],
   };
 }
 
