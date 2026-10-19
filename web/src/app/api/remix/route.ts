@@ -11,6 +11,30 @@ import { CLIPS, rel } from "@/lib/paths";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** remix1, remix2… — the first with no clips folder and no project (the CLI's rule). */
+function nextRemixFolder(): string {
+  for (let n = 1; ; n++) {
+    const f = `remix${n}`;
+    if (!exists(path.join(CLIPS, f)) && nextProjectName(f) === `${f}_1`) return f;
+  }
+}
+
+/** JSON {link, name?, cookies?}: a posted TikTok / Instagram / YouTube video. The CLI
+ *  downloads it into clips/<name>/.source/ and goes on exactly like an uploaded file. */
+async function fromLink(req: Request) {
+  const b = (await req.json().catch(() => ({}))) as { link?: string; name?: string; cookies?: string };
+  const link = b.link?.trim() ?? "";
+  if (!/^https?:\/\/\S+$/.test(link)) return Response.json({ error: "paste a TikTok, Instagram or YouTube link" }, { status: 400 });
+  const folder = b.name?.trim() || nextRemixFolder();
+  if (!validFolderName(folder)) return Response.json({ error: "bad name: letters, digits, space, _ - . only" }, { status: 400 });
+  if (exists(path.join(CLIPS, folder))) return Response.json({ error: `clips/${folder}/ already exists — give it another name` }, { status: 409 });
+  const argv = ["remix", "--video", link, "--name", folder, "--render"];
+  if (b.cookies && /^(chrome|safari|firefox)$/.test(b.cookies)) argv.push("--cookies", b.cookies);
+  const source = nextProjectName(folder);
+  const job = startJob(`Remix ${link.replace(/^https?:\/\/(www\.)?/, "").slice(0, 50)} ×4`, [beatcut(...argv)], `/video/${source}`);
+  return Response.json({ job: job.id, folder, source });
+}
+
 /** A folder name from a filename: "IMG_1234 final.mp4" → "img_1234_final". */
 function folderFromFile(name: string): string {
   const stem = path.parse(name).name.replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").toLowerCase();
@@ -26,7 +50,8 @@ function folderFromFile(name: string): string {
  */
 export async function POST(req: Request) {
   const ct = req.headers.get("content-type") ?? "";
-  if (!ct.startsWith("multipart/form-data") || !req.body) return Response.json({ error: "multipart/form-data expected" }, { status: 400 });
+  if (ct.startsWith("application/json")) return fromLink(req);
+  if (!ct.startsWith("multipart/form-data") || !req.body) return Response.json({ error: "multipart/form-data or JSON {link} expected" }, { status: 400 });
   const bb = Busboy({ headers: { "content-type": ct }, preservePath: true, limits: { files: 1 } });
   let wanted = "";
   let saved: { tmp: string; name: string } | null = null;

@@ -1097,6 +1097,59 @@ def split_video(video: Path, folder: Path, min_shot: float = 1.5, threshold: flo
     return shots
 
 
+def fetch_video(url: str, into: Path, cookies: str | None = None) -> Path:
+    """Download a posted video to `into/<slug>.mp4`: TikTok through tikwm (the same
+    keyless API `sound` uses; `hdplay`/`play` is the post without the watermark),
+    everything else (Instagram reels, YouTube) through yt-dlp as an mp4."""
+    into.mkdir(parents=True, exist_ok=True)
+    if "tiktok.com" in url:
+        _, final = http_get(url)
+        canonical = final.split("?")[0]
+        if "/music/" in canonical:
+            die("that is a sound page, not a post — paste a video link that uses the sound")
+        last = None
+        for candidate in dict.fromkeys([canonical, final, url]):
+            try:
+                body, _ = http_get("https://www.tikwm.com/api/?url=" + urllib.parse.quote(candidate, safe=""))
+                j = json.loads(body)
+            except Exception as e:  # noqa: BLE001
+                last = str(e)
+                continue
+            if j.get("code") == 0 and j.get("data"):
+                d = j["data"]
+                play = d.get("hdplay") or d.get("play")
+                if not play:
+                    die("tikwm resolved the post but it carries no video url")
+                if play.startswith("/"):
+                    play = "https://www.tikwm.com" + play
+                author = (d.get("author") or {}).get("unique_id") or "tiktok"
+                out = into / f"{slugify(author)}-{str(d.get('id') or '')[-8:]}.mp4"
+                data, _ = http_get(play, binary=True, timeout=300)
+                if len(data) < 50_000:
+                    die("the video download came back empty — the CDN link may have expired, re-run")
+                out.write_bytes(data)
+                print(f"downloaded @{author}'s post ({len(data) / 1e6:.1f} MB) → {rel(out)}")
+                return out
+            last = j.get("msg")
+        die(f"could not resolve {url} via tikwm ({last})")
+    yd = ytdlp_bin()
+    if not yd:
+        die("yt-dlp isn't installed — run: uv tool install yt-dlp")
+    hint = ("\nInstagram often wants a logged-in browser: re-run with `--cookies chrome` "
+            "(or safari / firefox)" if "instagram.com" in url and not cookies else "")
+    base = [yd, "--no-warnings"] + (["--cookies-from-browser", cookies] if cookies else [])
+    p = run(base + ["--skip-download", "--print", "%(id)s\t%(uploader)s", url], check=False)
+    if p.returncode:
+        die(f"yt-dlp couldn't read that link:\n{p.stderr.strip()[-600:]}{hint}")
+    vid, uploader = (p.stdout.strip().split("\t") + [""])[:2]
+    out = into / f"{(slugify(uploader)[:20] + '-' if uploader else '')}{slugify(vid)[-12:]}.mp4"
+    p = run(base + ["-q", "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b", "--merge-output-format", "mp4", "-o", str(out), url], check=False)
+    if p.returncode or not out.exists():
+        die(f"yt-dlp couldn't download the video:\n{p.stderr.strip()[-600:]}{hint}")
+    print(f"downloaded {url} ({out.stat().st_size / 1e6:.1f} MB) → {rel(out)}")
+    return out
+
+
 def cmd_shots(args) -> None:
     video = Path(args.video).expanduser()
     video = video if video.is_absolute() else ROOT / video
@@ -1124,17 +1177,43 @@ def import_video(video: Path, name: str | None) -> str:
     cmd_sound(argparse.Namespace(source=str(video), cookies=None))
     durs = sorted(video_duration(s) for s in shots)
     med = durs[len(durs) // 2]
-    preset = "tight" if med < 1.4 else "loose" if med < 3.2 else "chill"
+    preset = cap_preset("tight" if med < 1.4 else "loose" if med < 3.2 else "chill", durs)
+    # story order replays the shots in sequence; when the shots are too few or too short to
+    # hold the slots that way (a two-shot talking head), the plain assignment reuses footage
     plan_args = dict(clips=[rel(s) for s in shots], clips_dir=None, sound=None, cookies=None, start=0.0, preset=preset, sync=False,
                      first=1, story=",".join(map(str, range(1, len(shots) + 1))), random=False, hero=None, exclude=[], shuffle=False,
                      seed=None, length=round(video_duration(video), 3))
     print(f"\n=== {proj}: {video.name} as its own {len(shots)} shots, in order ({preset})")
-    cmd_plan(argparse.Namespace(**plan_args))
+    try:
+        cmd_plan(argparse.Namespace(**plan_args))
+    except SystemExit:
+        print("  (the shots can't replay in story order at this pace — footage is reused instead)")
+        cmd_plan(argparse.Namespace(**{**plan_args, "story": None}))
     project = load_project()
     project["imported_from"] = rel(video)
     save_project(project)
     cmd_board(argparse.Namespace())
     return proj
+
+
+def cap_preset(preset: str, durations: list[float]) -> str:
+    """The pace a set of clips can hold: chill wants 3–6 s shots, loose 1.4–3.2, tight
+    0.6–1.4 — a preset whose longest shot no clip could fill is stepped down (a 10 s
+    talking-head reel split into two shots cannot play chill)."""
+    longest = max(durations) - HEAD_TRIM - TAIL_PAD - 0.3
+    for p in ("chill", "loose", "tight"):
+        if p == preset or preset not in FREE_RANGES or FREE_RANGES[preset][1] > FREE_RANGES[p][1]:
+            if FREE_RANGES[p][1] <= longest or p == "tight":
+                return p
+    return "tight"
+
+
+def next_folder(prefix: str) -> str:
+    """remix1, remix2… — the first with no clips folder and no project."""
+    n = 1
+    while (CLIPS / f"{prefix}{n}").exists() or list(PROJECTS.glob(f"{prefix}{n}_*.json")):
+        n += 1
+    return f"{prefix}{n}"
 
 
 def next_name(prefix: str) -> str:
@@ -1151,11 +1230,17 @@ def cmd_remix(args) -> None:
     every other command edits as usual."""
     global CUR
     if args.video:
-        video = Path(args.video).expanduser()
-        video = video if video.is_absolute() else ROOT / video
-        if not video.exists():
-            die(f"no such video: {args.video}")
-        CUR = import_video(video, args.name)
+        if re.match(r"https?://", args.video):
+            # a posted video: downloaded into the folder's .source/ first, then imported like a file
+            name = args.name or next_folder("remix")
+            video = fetch_video(args.video, CLIPS / name / ".source", args.cookies)
+            CUR = import_video(video, name)
+        else:
+            video = Path(args.video).expanduser()
+            video = video if video.is_absolute() else ROOT / video
+            if not video.exists():
+                die(f"no such video: {args.video}")
+            CUR = import_video(video, args.name)
     src_name = CUR
     src, clips = load_project(), scan_clips()
     pointer = current_sound()
@@ -1220,14 +1305,27 @@ def cmd_remix(args) -> None:
         return round(s if d - s >= length - 0.5 else max(0.0, d - length), 3)
 
     made: list[str] = []
+    clip_durs = [c["duration"] for c in usable]
     for kind in only:
         snd, over = recipes[kind]
         over["start"] = fit_start(snd, float(over.get("length", base["length"])))
+        over["preset"] = cap_preset(over.get("preset", base["preset"]), clip_durs)
         name = next_name(prefix)
         CUR = name
         save_json(PROJECTS / f"{name}.sound.json", {"sound": snd["sound"], "beats": snd["beats"], "meta": snd.get("meta", {})})
         print(f"\n=== {name}: {kind} remix of {src_name} — {REMIX_RECIPES[kind]}")
-        cmd_plan(argparse.Namespace(**{**base, **over}))
+        try:
+            cmd_plan(argparse.Namespace(**{**base, **over}))
+        except SystemExit:
+            # too little footage for that order (a short reel split into two shots):
+            # the plain assignment reuses footage rather than giving up on the remix
+            print(f"  (not enough footage for the {kind} recipe's order — footage is reused instead)")
+            try:
+                cmd_plan(argparse.Namespace(**{**base, **over, "story": None, "random": False}))
+            except SystemExit:
+                print(f"  skipped the {kind} remix: the source's clips can't fill it", file=sys.stderr)
+                (PROJECTS / f"{name}.sound.json").unlink(missing_ok=True)
+                continue
         project = load_project()
         project.update({"remix_of": src_name, "remix": kind, "caption": src.get("caption")})
         save_project(project)
@@ -1844,8 +1942,9 @@ def main() -> None:
     s.add_argument("--render", action="store_true", help="render each one too (~1 min each)")
     s.add_argument("--sounds", nargs="*", metavar="MP3", help="sounds to use for the 'sound' and 'long' remixes (default: the pool minus the source's)")
     s.add_argument("--only", metavar="KINDS", help="a subset, e.g. hook,sound")
-    s.add_argument("--video", metavar="MP4", help="remix a finished video instead of a project: it is split into shots (clips/<name>/), its audio joins the pool, and a project <name>_N replays it as the source")
-    s.add_argument("--name", metavar="FOLDER", help="with --video: the clips folder / project prefix (default: the file's name)")
+    s.add_argument("--video", metavar="MP4|LINK", help="remix a finished video instead of a project — a file, or a TikTok / Instagram / YouTube link (downloaded first): it is split into shots (clips/<name>/), its audio joins the pool, and a project <name>_N replays it as the source")
+    s.add_argument("--name", metavar="FOLDER", help="with --video: the clips folder / project prefix (default: the file's name, or remixN for a link)")
+    s.add_argument("--cookies", metavar="BROWSER", help="with --video <link> on Instagram: chrome / safari / firefox login for yt-dlp")
     s.set_defaults(fn=cmd_remix)
     s = sub.add_parser("shots", help="cut a finished video into its shots (scene detection) as clips in clips/<name>/")
     s.add_argument("video")
