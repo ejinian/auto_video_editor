@@ -145,7 +145,18 @@ four sampled frames) so they do not sit on the source's own text. `render` on su
 project is `render_reformat` (scale/pad to 1080x1920, PNG overlays, amix); `show`,
 `board` and `remix` know the kind. On one of them, `reformat -p F_2 --lines … --render`
 sets its copy and renders. Prints `FRAMES:` and `REFORMATS: F_1 F_2 F_3`.
-In the app the Remix page's default is **Reformat ×3** (Re-cut ×4 is the other option,
+**reaction** (2026-10-19, silent): a character reacts in the corner — `avatar <name> --image
+<public url | file> [--reactions nod,shocked,laugh,point,think]` generates one 5 s clip per
+reaction ONCE with **Higgsfield** image-to-video (Kling 3.0 std, sound off; `HIGGSFIELD_KEY_ID`
+/ `HIGGSFIELD_KEY_SECRET` in `web/.env.local`, pay as you go ≈ $0.4 a clip; a local file is
+sent as a data url, a public url as is; async: `status_url` polled every 5 s, `video.url`
+downloaded) into `clips/_avatar/<name>/<reaction>.mp4`; `avatar --list` shows them. A
+reaction reformat (`reactions: [{t, kind}]`, `--reactions "0:nod,2.5:shocked"`, empty =
+spread evenly; `--avatar`, default the first character) overlays the clip for each window as a
+rounded square (38 % of the width, bottom-left above TikTok's caption zone, `pip_mask` +
+`alphamerge`, looped to the window) — the original audio untouched. It is made with the
+other three whenever a character exists; the Claude ask also picks the moments.
+In the app the Remix page's default is **Reformat** (Re-cut ×4 is the other option,
 for raw footage); the job lands on `/video/F_1?ask=reformat`, which fires a Claude ask
 (`ReformatEditor`): read the frame sheet, write the hook, the narration and the comment
 for all three, lint with /ig-human, render each, write the captions. The page edits the

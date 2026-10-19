@@ -40,7 +40,7 @@ function start(mode: string | undefined, video: string, folder: string, cookies:
   const argv = recut ? ["remix", "--video", video, "--name", folder, "--render"] : ["reformat", "--video", video, "--name", folder];
   if (cookies && /^(chrome|safari|firefox)$/.test(cookies)) argv.push("--cookies", cookies);
   const source = nextProjectName(folder);
-  const job = startJob(recut ? `Remix ${label} ×4` : `Reformat ${label} ×3`, [beatcut(...argv)], recut ? `/video/${source}` : `/video/${source}?ask=reformat`);
+  const job = startJob(recut ? `Remix ${label} ×4` : `Reformat ${label}`, [beatcut(...argv)], recut ? `/video/${source}` : `/video/${source}?ask=reformat`);
   return Response.json({ job: job.id, folder, source });
 }
 
