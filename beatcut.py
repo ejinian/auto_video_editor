@@ -1782,7 +1782,11 @@ def render_reformat(project: dict, args) -> None:
         still = AVATARS / avatar / "character.png"
         if not clips_have and not still.exists():
             die(f"avatar '{avatar}' has neither clips nor a picture")
-        cw = int(w * 0.82)
+        # "corner" (default): a smaller cutout in the bottom-left corner, the natural reaction
+        # placement, above TikTok's caption zone; "center": big, bottom-centre, shoulders off the edge
+        corner = (project.get("avatar_pos") or "corner") == "corner"
+        cw = int(w * (0.46 if corner else 0.82))
+        pos = f"{int(w * 0.03)}:H*0.88-h" if corner else "(W-w)/2:H-h+h*0.04"
         key = "chromakey=0x00ff00:0.28:0.12,despill=type=green"
         if clips_have:
             reactions = parse_reactions(",".join(f"{r['t']}:{r['kind']}" for r in (project.get("reactions") or [])), avatar, dur)
@@ -1801,7 +1805,7 @@ def render_reformat(project: dict, args) -> None:
                 cmd += ["-stream_loop", "-1", "-t", f"{t1 - t0 + 0.5:.3f}", "-i", str(src_clip)]
                 motion = ""
             filters.append(f"[{n_in}:v]fps={FPS},{motion}scale={cw}:-2,format=rgba,{key},setpts=PTS-STARTPTS+{t0:.3f}/TB[g{i}]")
-            filters.append(f"[{last_v}][g{i}]overlay=(W-w)/2:H-h+h*0.04:format=auto:eof_action=pass:enable='between(t,{t0:.3f},{t1:.3f})'[r{i}]")
+            filters.append(f"[{last_v}][g{i}]overlay={pos}:format=auto:eof_action=pass:enable='between(t,{t0:.3f},{t1:.3f})'[r{i}]")
             last_v = f"r{i}"
             n_in += 1
         filters.append(f"[{last_v}]null[v0]")
@@ -1925,6 +1929,8 @@ def cmd_reformat(args) -> None:
         if comment is not None and project["reformat"] == "reply":
             project["comment"] = comment
         if project["reformat"] == "reaction":
+            if args.pos:
+                project["avatar_pos"] = args.pos
             if args.avatar:
                 project["avatar"] = avatar_name
             if args.reactions is not None:
@@ -2615,6 +2621,7 @@ def main() -> None:
     s.add_argument("--user", metavar="HANDLE", help="who wrote the comment, if real (shown as 'Reply to @user')")
     s.add_argument("--avatar", metavar="NAME", help="the character for the reaction reformat (default: the first under clips/_avatar/)")
     s.add_argument("--reactions", metavar="T:KIND,…", help="when the avatar does what, e.g. 0:nod,2.5:shocked,6:laugh (reaction reformat; default: spread evenly)")
+    s.add_argument("--pos", choices=["corner", "center"], help="where the green-screen avatar stands: corner (bottom-left, default) or center (big, bottom-centre)")
     s.add_argument("--render", action="store_true", help="render too (each one that has its copy)")
     s.set_defaults(fn=cmd_reformat)
     s = sub.add_parser("avatar", help="a character that reacts in the corner of a reaction reformat: generate its reaction clips once (Higgsfield image-to-video) — or --list")
