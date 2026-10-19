@@ -163,8 +163,9 @@ other three whenever a character exists; the Claude ask also picks the moments.
 too much"):** `avatar <name> --image-only --prompt "… in front of a solid bright chroma key
 green screen …"` draws the character alone (a cent; `character.json` notes `green: true`
 when the prompt says green screen / chroma). A green character is composed TikTok-green-
-screen style: `chromakey=0x00ff00:0.28:0.12,despill`, 82 % of the width, bottom-centre,
-shoulders off the bottom edge — and a character with NO clips yet is used as a still that
+screen style: `chromakey=0x00ff00:0.28:0.12,despill`; `avatar_pos` **corner** (default, Christian: "the
+natural reaction" — 46 % of the width, bottom-left, above the caption zone) or **center**
+(82 %, bottom-centre, shoulders off the edge); `reformat --pos corner|center` — and a character with NO clips yet is used as a still that
 breathes in place (crop wobble) for the whole video, so the look is judged before any video
 is bought. Clips then come from the cheapest model by default (`kling-2.5` turbo standard
 ≈ $0.21 per 5 s; `--model kling-3` ≈ $0.56) with calm, product-presenting reactions
