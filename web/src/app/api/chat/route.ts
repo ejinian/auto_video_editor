@@ -1,12 +1,13 @@
 import { runTurn, isRunning } from "@/lib/agent";
+import { hasChatAuth } from "@/lib/chatAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** POST {message, sessionId?, context?} → NDJSON stream of ChatEvent. */
 export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json({ error: "ANTHROPIC_API_KEY is not set. Put it in web/.env.local and restart the app." }, { status: 503 });
+  if (!hasChatAuth()) {
+    return Response.json({ error: "No ANTHROPIC_API_KEY in web/.env.local and no Claude Code login on this Mac: put a key there and restart the app, or run `claude` in a terminal and /login once." }, { status: 503 });
   }
   const body = (await req.json().catch(() => null)) as { message?: string; sessionId?: string | null; context?: string | null } | null;
   const message = body?.message?.trim();

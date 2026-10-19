@@ -43,8 +43,8 @@ research and the caption skills. Both read and write the same files, so you can 
      Downloads into the drop zone; they are copied to `clips/dayN/` and show up
      numbered as they land. Or click a folder that is already there.
    - *Sound*: click a card in the pool (play it there), or paste a TikTok / Instagram /
-     YouTube link and it is downloaded and selected, or press **Let Claude pick** and
-     send the question it puts in the panel.
+     YouTube link and it is downloaded and selected, or press **Let Claude pick**: Claude
+     looks at the footage and the pool in the panel and selects one for you.
    - *Cut*: length, how often to cut, the opener (click a clip), Story or Random. Seed,
      the on-screen line, beat sync and "render now" sit under *More options*. **Cut it**
      plans, renders and opens the video page, where every edit is a button.

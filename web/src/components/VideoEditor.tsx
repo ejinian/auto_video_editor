@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Loader2, Sparkles } from "lucide-react";
+import { askClaude, lastLine } from "@/components/chat/ask";
 import { SlotCard } from "@/components/SlotCard";
 import { Timeline } from "@/components/Timeline";
 import { useJob } from "@/components/useJob";
@@ -100,6 +102,7 @@ export function VideoEditor({ d }: { d: ProjectDetail }) {
               <div><a href={mediaUrl(d.inFinal ? `final/${name}.mp4` : d.mp4, true)}>download</a></div>
             </div>
           )}
+          <FixIt name={name} />
         </div>
         {slot ? (
           <SlotCard key={`${slot.n}-${slot.clip}-${slot.in}`} d={d} slot={slot} time={time} busy={busy} onRun={onRun} onSeek={seek} />
@@ -115,6 +118,51 @@ export function VideoEditor({ d }: { d: ProjectDetail }) {
       <Timeline name={name} slots={d.slots} selected={selected} time={time} hasVideo={!!d.mp4} busy={busy} onSelect={pick}
         onMove={(a, b) => onRun("move", { a: String(a), b: String(b) })}
         onSwap={(a, b) => onRun("swap", { a: String(a), b: String(b) })} />
+    </div>
+  );
+}
+
+const FIX_EXAMPLES = ["swap 3 and 8", "hold the drop longer", "start the opener later"];
+
+/** One line to Claude about this video: Enter sends it as a new chat turn (the panel
+ *  opens beside the page and runs the beatcut commands); the page re-reads the folder
+ *  after every command, so the timeline and storyboard follow by themselves. */
+function FixIt({ name }: { name: string }) {
+  const [text, setText] = useState("");
+  const [state, setState] = useState<{ kind: "idle" } | { kind: "running" } | { kind: "done"; note: string } | { kind: "error"; error: string }>({ kind: "idle" });
+  const running = state.kind === "running";
+  const send = async () => {
+    const prompt = text.trim();
+    if (!prompt || running) return;
+    setState({ kind: "running" });
+    setText("");
+    const r = await askClaude({ prompt, send: true, newThread: true, from: `Fix it · ${name}`, context: `project:${name}` });
+    if (!r) return;
+    if (r.isError) setState({ kind: "error", error: r.error ?? "it did not finish" });
+    else setState({ kind: "done", note: lastLine(r.text).replace(/[*_`]/g, "") });
+  };
+  return (
+    <div className="mt-3">
+      <div className="relative">
+        <Sparkles size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+        <input
+          className="input !pl-8" value={text} disabled={running}
+          placeholder="swap 3 and 8 · hold the drop longer · start the bench shot later…"
+          aria-label="tell Claude what to fix in this video"
+          onChange={(e) => { setText(e.target.value); if (state.kind !== "running") setState({ kind: "idle" }); }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } }}
+        />
+      </div>
+      {state.kind === "running" && <div className="flex items-center gap-1.5 text-[12px] text-acc mt-1.5"><Loader2 size={12} className="animate-spin" /> Claude is editing…</div>}
+      {state.kind === "done" && <div className="text-[12px] text-muted mt-1.5 truncate" title={state.note}>done — {state.note || "see the panel"}</div>}
+      {state.kind === "error" && <div className="text-[12px] text-bad mt-1.5">{state.error}</div>}
+      {state.kind !== "running" && (
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {FIX_EXAMPLES.map((ex) => (
+            <button key={ex} type="button" className="tag hover:border-acc hover:text-fg cursor-pointer" onClick={() => { setText(ex); setState({ kind: "idle" }); }} title="puts this in the box; Enter sends it">{ex}</button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

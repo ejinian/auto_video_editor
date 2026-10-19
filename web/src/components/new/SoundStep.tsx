@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { Loader2, Sparkles } from "lucide-react";
+import { askClaude } from "@/components/chat/ask";
 import { mediaUrl, mmss } from "@/lib/format";
 import type { JobInfo, SoundInfo } from "@/lib/types";
 
@@ -11,9 +13,10 @@ function sourceLabel(src?: string): string {
   try { return new URL(src).hostname.replace(/^www\./, ""); } catch { return src.split("/").pop() ?? src; }
 }
 
-/** Ask the Claude panel to open with this text in its box (nothing is sent). */
-export function prefillChat(prompt: string) {
-  window.dispatchEvent(new CustomEvent("beatcut:chat", { detail: { prompt } }));
+/** The `SOUND: sound/<file>.mp3` line Claude is asked to end with (the last one wins). */
+export function pickedSound(text: string): string | null {
+  const m = [...text.matchAll(/SOUND:\s*`?(sound\/[^\s`*]+\.mp3)`?/gi)];
+  return m.length ? m[m.length - 1][1] : null;
 }
 
 export function SoundStep({ folder, clipCount, sounds, selected, onSounds, onSelect, onBack, onNext }: {
@@ -63,11 +66,32 @@ export function SoundStep({ folder, clipCount, sounds, selected, onSounds, onSel
     setJob({ id: j.job, title: l, cmds: [], log: "", done: false, ok: true, then: null, startedAt: Date.now(), endedAt: null });
   };
 
-  const askClaude = () =>
-    prefillChat(
-      `Pick a sound from the pool (sound/*.mp3; the .source.json and .beats.json next to each file say what it is, its bpm and drops) for the footage in clips/${folder}/ (${clipCount} clips — look at the frame sheets or thumbnails first). ` +
-      "Tell me which one fits the footage best and why, with its drop time and bpm, and name a second choice. Don't cut or render anything yet; I'll pick it in the New video flow.",
-    );
+  // Claude picks: a new chat thread that reads the footage and the pool (or downloads a
+  // trending sound); when the turn is done the pool is re-read and the file named on
+  // the answer's last line is selected. If that line is missing, the list just refreshes.
+  const [pick, setPick] = useState<{ kind: "idle" } | { kind: "running" } | { kind: "done"; chosen: string | null } | { kind: "error"; error: string }>({ kind: "idle" });
+  const letClaudePick = async () => {
+    if (pick.kind === "running") return;
+    setPick({ kind: "running" });
+    const r = await askClaude({
+      prompt:
+        `Look at the clips in clips/${folder} (frame sheets) and pick the best sound from the pool in sound/ for them, or find a trending one and download it with \`sound <link>\`. ` +
+        "Answer with the chosen file's name on the last line as `SOUND: sound/<file>.mp3`.",
+      send: true, newThread: true, from: `Let Claude pick · clips/${folder}`, context: `folder:${folder}`,
+    });
+    if (!r) return;
+    let pool: SoundInfo[] = sounds;
+    try {
+      pool = (await (await fetch("/api/sounds")).json()) as SoundInfo[];
+      onSounds(pool);
+      for (const s of pool) known.current.add(s.path);
+    } catch { /* keep the list we have */ }
+    if (r.isError) { setPick({ kind: "error", error: r.error ?? "it did not finish" }); return; }
+    const chosen = pickedSound(r.text);
+    const hit = chosen ? pool.find((s) => s.path === chosen) ?? null : null;
+    if (hit) onSelect(hit.path);
+    setPick({ kind: "done", chosen: hit?.title ?? null });
+  };
 
   const busy = !!job && !job.done;
   const tail = job?.log.trim().split("\n").slice(-6).join("\n");
@@ -87,9 +111,12 @@ export function SoundStep({ folder, clipCount, sounds, selected, onSounds, onSel
         </div>
         <div className="card">
           <div className="font-semibold">Not sure which?</div>
-          <div className="text-muted text-xs mt-0.5 mb-2">Claude looks at the footage and the pool and suggests one. The question is put in the panel for you to send; it does not cut anything.</div>
-          <button type="button" className="btn sec" onClick={askClaude}>Let Claude pick</button>
-          <div className="text-muted text-xs mt-2">For a trending sound that is not in the pool yet, ask it in the panel (&ldquo;find this week&apos;s trending sounds for a vibe-coding bit&rdquo;) and paste the link here.</div>
+          <div className="text-muted text-xs mt-0.5 mb-2">Claude looks at the footage ({clipCount} clips) and the pool and picks one, or downloads a trending sound. It runs in the panel beside this page and selects the sound below when it is done; nothing is cut.</div>
+          <button type="button" className="btn" onClick={letClaudePick} disabled={pick.kind === "running"}>
+            {pick.kind === "running" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} {pick.kind === "running" ? "Claude is picking…" : "Let Claude pick"}
+          </button>
+          {pick.kind === "done" && <div className="text-acc text-xs mt-2">{pick.chosen ? <>picked <b>{pick.chosen}</b> — selected below</> : "done — the pool is refreshed; read the panel and click the one it named"}</div>}
+          {pick.kind === "error" && <div className="text-bad text-xs mt-2">{pick.error}</div>}
         </div>
       </div>
 

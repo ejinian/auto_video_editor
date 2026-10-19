@@ -303,8 +303,10 @@ of the shoot page is gone):**
 2. **Sound.** The pool as cards (title, author, length, bpm, first drop, `<audio>`, which
    videos used it); click one. A paste-a-link box runs `sound <link>` as a job
    (`POST /api/sounds`), polls `/api/jobs/<id>` and selects the newly added file when it
-   is done. **Let Claude pick** opens the side panel with a prefilled question (a
-   `beatcut:chat` window event the panel listens for; nothing is sent until Enter).
+   is done. **Let Claude pick** sends an ask (see "Claude in each step" below): Claude
+   looks at the clips' frame sheets and the pool (or downloads a trending sound) and
+   ends with `SOUND: sound/<file>.mp3`; the step re-reads the pool and selects that file
+   (if the line is missing, the list just refreshes).
 3. **Cut.** Length and preset as segmented controls, the opener by clicking a thumbnail,
    Story vs Random as two cards, the rest (video name, story order, seed, hook, `--sync`,
    render now) under "More options". "Cut it" posts to the same `POST /api/cut` as before
@@ -342,7 +344,33 @@ model, default `claude-opus-5-5`). Turns stream as NDJSON from `POST /api/chat`
 (`resume`), so a thread survives a restart; the page next to the panel re-reads the
 folder after every tool call. Chats are listed in the panel's header; "Stop" interrupts.
 When you (Claude Code) and the app both touch a project, the app wins nothing: it is the
-same files.
+same files. The SDK signs in with `ANTHROPIC_API_KEY` when `web/.env.local` has one, else
+with the Claude Code login on this Mac (`lib/chatAuth.ts`; the key that was in the main
+checkout's `.env.local` on 2026-10-19 is a `sk-ant-usr-…` token the API rejects, so the
+login is what actually runs the chat).
+
+**Claude in each step (2026-10-19):** pages ask Claude through one helper,
+`askClaude()` in `web/src/components/chat/ask.ts` — a `beatcut:chat` window event the
+panel listens for: it opens, optionally starts a NEW thread, prefills the prompt and,
+with `send: true`, sends it at once; the user turn shows where it came from ("from Fix
+it · day3_1"). A sent ask returns a promise that resolves when the turn is done (the
+panel answers with a `beatcut:chat:done` event carrying the final text, `isError`,
+the session id); while one runs, another sent ask is refused ("stop it first"). The
+asks, each a new thread with the page's context:
+- **Fix it** box under the player (`VideoEditor.tsx`): one line ("swap 3 and 8"), Enter
+  sends it; "Claude is editing…" under the box until the turn is done, then its last
+  line; three example chips fill the box. The timeline/storyboard follow by themselves
+  (the panel calls `router.refresh()` after every tool result).
+- **Write with Claude** in the caption card (`CaptionEditor.tsx`): "/ig-caption, lint
+  with /ig-human until PASS, save to the caption file"; at done the editor re-fetches
+  `GET /api/projects/<name>/caption` into the box.
+- **Let Claude pick** in the /new sound step (`new/SoundStep.tsx`, above).
+- **Ask Claude about this shot** in the slot card (`SlotCard.tsx`): "Look at slot n
+  (clip c at Xs) on the storyboard… suggest one change".
+The agent's appended system prompt (`lib/agent.ts`) says these arrive from buttons and
+may be terse, that a Fix-it line is an edit to the open project (run it, board,
+render), that a shot question must be checked on the storyboard first, and that the
+sound pick must end with the `SOUND:` line.
 
 **`/day` is the loop (2026-10-08):** `/day plan` (idea + shot list from the swipe file,
 rotating formulas via `projects/ideas.md`, saved as `projects/dayN.plan.md`), `/day N`

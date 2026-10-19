@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
+import { askClaude } from "@/components/chat/ask";
 import { clipFrameUrl, thumbUrl } from "@/lib/format";
 import type { ProjectDetail, SlotRow } from "@/lib/types";
 
@@ -77,6 +79,13 @@ export function SlotCard({ d, slot, time, busy, onRun, onSeek }: {
               <button className="btn sec sm" disabled={busy || !hasDrop || slot.hero} title={!hasDrop ? "this sound has no drop in range" : d.project.story?.length ? `hero ${slot.clip} — note: a story edit ignores the hero` : `hero ${slot.clip} — this clip lands on the drop`} onClick={() => onRun("hero", { clip: String(slot.clip) })}>Put on the drop</button>
               <button className="btn bad sm" disabled={busy} title={`drop ${slot.clip} — every shot of clip ${slot.clip} is refilled with another clip`} onClick={() => onRun("drop", { clip: String(slot.clip) })}>Remove clip {slot.clip} from the video</button>
             </div>
+            <button
+              type="button" className="btn sec sm mt-2" title="a new chat: Claude reads the storyboard and says whether this shot works"
+              onClick={() => void askClaude({
+                prompt: `Look at slot ${slot.n} (clip ${slot.clip} at ${slot.in.toFixed(2)}s) of ${d.name} on the storyboard and tell me if it works; suggest one change`,
+                send: true, newThread: true, from: `Shot ${slot.n} · ${d.name}`, context: `project:${d.name}`,
+              })}
+            ><Sparkles size={13} /> Ask Claude about this shot</button>
           </div>
         </div>
       )}
