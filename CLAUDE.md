@@ -98,7 +98,19 @@ video would not fit before the sound ends (a drop near the end gave a 6 s video)
 late as the length allows. Each remix keeps the source's on-screen hook; the hook, caption
 and opener are what "Remix with Claude" then changes. Seeds derive from the source's
 (+11, +1, +23, +5) so a second `remix` of the same video gives the same four. The last line
-is `REMIXES: name1 name2 name3 name4`. In the app: **Remix ×4** on a video page runs
+is `REMIXES: name1 name2 name3 name4`.
+
+**Any finished video, not only a project (2026-10-19):** `remix --video <mp4> [--name F]` first
+imports it — `shots` (ffmpeg scene detection, `select='gt(scene,0.3)'`, no shot shorter than
+1.5 s so each can hold a slot, re-encoded H.264 without audio into `clips/F/shot_NN.mp4`),
+`sound <mp4>` (its audio joins the pool as `sound/<slug>.mp3`), then a project `F_1` replays
+the shots in story order on that sound (`imported_from` in its json; preset from the median
+shot length) — and remixes THAT. Prints `SOURCE: F_1` before `REMIXES:`. `shots <video>
+[--into F] [--min-shot S]` is the import alone. In the app, **/remix** (sidebar + home
+header): drop one video → `POST /api/remix` (multipart; stored at `clips/F/.source/<file>`,
+a dot-folder so it is not a clip; refuses an existing folder) → one job `remix --video …
+--render` → the source's page with the four cards; the page also lists every rendered
+video with its own Remix ×4. **Remix ×4** on a video page runs
 `remix --render` as one job (`POST /api/projects/<name>/remix`, `{only, render}`) and comes
 back to the source, whose page shows the family (`RemixStrip`: "hook cut of X" on a remix,
 the four cards with their status on the source); feed cards carry a "remix of X" tag.

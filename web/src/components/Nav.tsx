@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, BookOpen, Home, Music, Plus, Scissors, Video } from "lucide-react";
+import { Activity, BookOpen, Home, Music, Plus, Scissors, Shuffle, Video } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/", label: "Home", Icon: Home },
   { href: "/videos", label: "Videos", Icon: Video },
+  { href: "/remix", label: "Remix", Icon: Shuffle },
   { href: "/sounds", label: "Sounds", Icon: Music },
   { href: "/jobs", label: "Jobs", Icon: Activity },
   { href: "/howto", label: "How to", Icon: BookOpen },

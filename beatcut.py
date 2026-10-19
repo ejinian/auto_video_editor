@@ -1059,6 +1059,84 @@ def pool_sounds(exclude: set[str]) -> list[dict]:
     return out
 
 
+def video_duration(p: Path) -> float:
+    out = run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(p)]).stdout.strip()
+    return float(out or 0)
+
+
+def split_video(video: Path, folder: Path, min_shot: float = 1.5, threshold: float = 0.3) -> list[Path]:
+    """Cut a finished video into its shots (ffmpeg scene detection), one clip per shot in
+    `folder` — shot_01.mp4, shot_02.mp4… in order. Scene changes closer than `min_shot`
+    to the previous cut are skipped, so every shot is long enough to hold a slot (a
+    0.6 s shot would be unusable after the head/tail margins). Audio is dropped: the
+    remixes get their own sound. Re-encoded (H.264, videotoolbox when it works) because a
+    stream copy can only cut on keyframes."""
+    dur = video_duration(video)
+    if dur < 2:
+        die(f"{video.name} is {dur:.1f} s — nothing to split")
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(video), "-vf", f"select='gt(scene,{threshold})',showinfo", "-an", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    times = sorted(float(m) for m in re.findall(r"pts_time:\s*([0-9.]+)", r.stderr))
+    cuts, last = [0.0], 0.0
+    for t in times:
+        if t - last >= min_shot and dur - t >= min_shot:
+            cuts.append(t)
+            last = t
+    cuts.append(dur)
+    folder.mkdir(parents=True, exist_ok=True)
+    shots: list[Path] = []
+    for i in range(len(cuts) - 1):
+        s, e = cuts[i], cuts[i + 1]
+        out = folder / f"shot_{i + 1:02d}.mp4"
+        base = ["ffmpeg", "-y", "-v", "error", "-ss", f"{s:.3f}", "-i", str(video), "-t", f"{e - s:.3f}", "-an", "-pix_fmt", "yuv420p"]
+        p = subprocess.run(base + ["-c:v", "h264_videotoolbox", "-b:v", "12M", str(out)], capture_output=True, text=True)
+        if p.returncode or not out.exists():
+            run(base + ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", str(out)])
+        shots.append(out)
+    print(f"split {video.name} ({dur:.1f} s) into {len(shots)} shots → {rel(folder)}/ (scene changes ≥ {min_shot} s apart)")
+    return shots
+
+
+def cmd_shots(args) -> None:
+    video = Path(args.video).expanduser()
+    video = video if video.is_absolute() else ROOT / video
+    if not video.exists():
+        die(f"no such video: {args.video}")
+    folder = CLIPS / (args.into or re.sub(r"[^A-Za-z0-9_-]+", "_", video.stem).strip("_").lower() or "shots")
+    split_video(video, folder, args.min_shot)
+    print(f"next: uv run beatcut.py -p {folder.name}_1 plan --clips-dir {rel(folder)} --story {','.join(map(str, range(1, len(list_dir_clips(folder)) + 1)))}")
+
+
+def import_video(video: Path, name: str | None) -> str:
+    """A finished video (an old post) as a project of its own shots: split it, its audio
+    becomes a pool sound, and a project <folder>_N replays the shots in order on that
+    sound — so `remix` has a source to work from. Returns the project name."""
+    global CUR
+    folder_name = name or re.sub(r"[^A-Za-z0-9_-]+", "_", video.stem).strip("_").lower() or "remix"
+    folder = CLIPS / folder_name
+    shots = list_dir_clips(folder) if folder.is_dir() else []
+    if shots:
+        print(f"using the {len(shots)} shots already in {rel(folder)}/")
+    else:
+        shots = split_video(video, folder)
+    proj = next_name(folder_name)
+    CUR = proj
+    cmd_sound(argparse.Namespace(source=str(video), cookies=None))
+    durs = sorted(video_duration(s) for s in shots)
+    med = durs[len(durs) // 2]
+    preset = "tight" if med < 1.4 else "loose" if med < 3.2 else "chill"
+    plan_args = dict(clips=[rel(s) for s in shots], clips_dir=None, sound=None, cookies=None, start=0.0, preset=preset, sync=False,
+                     first=1, story=",".join(map(str, range(1, len(shots) + 1))), random=False, hero=None, exclude=[], shuffle=False,
+                     seed=None, length=round(video_duration(video), 3))
+    print(f"\n=== {proj}: {video.name} as its own {len(shots)} shots, in order ({preset})")
+    cmd_plan(argparse.Namespace(**plan_args))
+    project = load_project()
+    project["imported_from"] = rel(video)
+    save_project(project)
+    cmd_board(argparse.Namespace())
+    return proj
+
+
 def next_name(prefix: str) -> str:
     PROJECTS.mkdir(exist_ok=True)
     ns = [int(m.group(1)) for q in PROJECTS.glob(f"{prefix}_*.json")
@@ -1072,6 +1150,12 @@ def cmd_remix(args) -> None:
     Each is a normal project (projects/<folder>_N.json, tagged remix_of / remix) that
     every other command edits as usual."""
     global CUR
+    if args.video:
+        video = Path(args.video).expanduser()
+        video = video if video.is_absolute() else ROOT / video
+        if not video.exists():
+            die(f"no such video: {args.video}")
+        CUR = import_video(video, args.name)
     src_name = CUR
     src, clips = load_project(), scan_clips()
     pointer = current_sound()
@@ -1153,6 +1237,8 @@ def cmd_remix(args) -> None:
         made.append(name)
     CUR = src_name
     print(f"\nremixes of {src_name}: {' '.join(made)}" + ("" if args.render else f"\nnext: uv run beatcut.py -p {made[0]} render   (each one)"))
+    if args.video:
+        print(f"SOURCE: {src_name}")
     print(f"REMIXES: {' '.join(made)}")
 
 
@@ -1758,7 +1844,14 @@ def main() -> None:
     s.add_argument("--render", action="store_true", help="render each one too (~1 min each)")
     s.add_argument("--sounds", nargs="*", metavar="MP3", help="sounds to use for the 'sound' and 'long' remixes (default: the pool minus the source's)")
     s.add_argument("--only", metavar="KINDS", help="a subset, e.g. hook,sound")
+    s.add_argument("--video", metavar="MP4", help="remix a finished video instead of a project: it is split into shots (clips/<name>/), its audio joins the pool, and a project <name>_N replays it as the source")
+    s.add_argument("--name", metavar="FOLDER", help="with --video: the clips folder / project prefix (default: the file's name)")
     s.set_defaults(fn=cmd_remix)
+    s = sub.add_parser("shots", help="cut a finished video into its shots (scene detection) as clips in clips/<name>/")
+    s.add_argument("video")
+    s.add_argument("--into", metavar="FOLDER", help="clips folder name (default: the file's name)")
+    s.add_argument("--min-shot", type=float, default=1.5, help="no shot shorter than this many seconds (default 1.5)")
+    s.set_defaults(fn=cmd_shots)
 
     sub.add_parser("show", help="print the edit").set_defaults(fn=cmd_show)
     sub.add_parser("board", help="storyboard, one frame per slot -> out/_board.jpg").set_defaults(fn=cmd_board)
