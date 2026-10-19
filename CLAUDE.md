@@ -131,8 +131,12 @@ on the first link remixes). `reformat --video <mp4|LINK> [--name F] [--cookies c
 [--user handle]] [--render]` keeps the cut and makes THREE projects `F_1..3` of
 `kind: "reformat"` (no cuts/slots; `source` = the mp4 under `clips/F/.source/`, F defaults
 to `reelN` for a link): **hook** (a new hook line on screen), **narrated** (2-3 lines said
-by a macOS voice in the TikTok text-to-speech style — `say -v Samantha`, each line shown
-as it is said, the original audio ducked to 0.3 under it) and **reply** (the comment the
+in the TikTok text-to-speech style — by **ElevenLabs** (`voice: "eleven"` = the voice in
+`web/.env.local`'s `ELEVENLABS_VOICE_ID`, with `ELEVENLABS_API_KEY`; `eleven:<id>` for
+another; model `eleven_multilingual_v2`, `ELEVENLABS_MODEL` overrides; the CLI reads
+`web/.env.local` itself, `web_env()`) when a key is set (Christian's, 2026-10-19), else by
+the Mac's `say -v Samantha` — each line shown as it is said, the original audio ducked to
+0.3 under it) and **reply** (the comment the
 video answers in a white TikTok reply bubble; "Reply to @user" only when `--user` names
 a real commenter, else "replying to a comment"). The audio joins the pool, a frame sheet
 goes to `out/F/_frames_<stem>.jpg` and is copied as each project's board. Overlays are
