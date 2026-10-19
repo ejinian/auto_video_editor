@@ -159,6 +159,18 @@ spread evenly; `--avatar`, default the first character) overlays the clip for ea
 rounded square (38 % of the width, bottom-left above TikTok's caption zone, `pip_mask` +
 `alphamerge`, looped to the window) — the original audio untouched. It is made with the
 other three whenever a character exists; the Claude ask also picks the moments.
+**Green screen, and cheap rounds (2026-10-19, after the first avatar "looked horrible and cost
+too much"):** `avatar <name> --image-only --prompt "… in front of a solid bright chroma key
+green screen …"` draws the character alone (a cent; `character.json` notes `green: true`
+when the prompt says green screen / chroma). A green character is composed TikTok-green-
+screen style: `chromakey=0x00ff00:0.28:0.12,despill`, 82 % of the width, bottom-centre,
+shoulders off the bottom edge — and a character with NO clips yet is used as a still that
+breathes in place (crop wobble) for the whole video, so the look is judged before any video
+is bought. Clips then come from the cheapest model by default (`kling-2.5` turbo standard
+≈ $0.21 per 5 s; `--model kling-3` ≈ $0.56) with calm, product-presenting reactions
+(`agree`, `present`, `listen`, `thumbs`, `nod`…; every prompt tells the model to keep the
+green background; default set agree,present,listen). Christian's pick of the girl
+character decides which of `girl1..3` becomes the house avatar.
 In the app the Remix page's default is **Reformat** (Re-cut ×4 is the other option,
 for raw footage); the job lands on `/video/F_1?ask=reformat`, which fires a Claude ask
 (`ReformatEditor`): read the frame sheet, write the hook, the narration and the comment

@@ -1361,14 +1361,32 @@ REFORMATS = {
     "reaction": "an avatar reacting in the corner, silent (short image-to-video clips of the character, switched at the moments that earn a reaction; the original audio untouched)",
 }
 AVATARS = CLIPS / "_avatar"   # clips/_avatar/<name>/<reaction>.mp4 — generated once, reused by every reaction reformat
-REACTIONS = {   # what the avatar does; one short clip per key, image-to-video from the character's picture
-    "nod": "the person nods slowly in agreement, small smile, looking at the camera, subtle natural motion, same framing",
-    "shocked": "the person's eyes go wide and jaw drops in shock, hands come up to the face, looking at the camera, same framing",
-    "laugh": "the person bursts out laughing, head tilts back a little, genuinely amused, looking at the camera, same framing",
-    "point": "the person leans in and points at the viewer, raised eyebrows, 'see, told you' expression, same framing",
-    "think": "the person squints, rubs their chin, thinking hard, then raises an eyebrow, looking at the camera, same framing",
+REACTIONS = {   # what the avatar does; one short clip per key, image-to-video from the character's picture.
+    # Calm, "presenting a product" reactions — nothing theatrical. Every prompt keeps the green screen.
+    "nod": "the person nods gently in agreement with a small smile, looking at the camera, subtle natural movement, "
+           "the solid green screen background stays unchanged, same framing",
+    "agree": "the person smiles and nods once, then keeps looking at the camera calmly, subtle natural movement, "
+             "the solid green screen background stays unchanged, same framing",
+    "present": "the person gestures with an open hand toward the side as if showing something, warm smile, then looks back at the camera, "
+               "subtle natural movement, the solid green screen background stays unchanged, same framing",
+    "thumbs": "the person gives a relaxed thumbs up with a small smile, looking at the camera, subtle natural movement, "
+              "the solid green screen background stays unchanged, same framing",
+    "listen": "the person listens attentively with a slight head tilt and a soft smile, blinking naturally, "
+              "the solid green screen background stays unchanged, same framing",
+    "shocked": "the person's eyes widen in mild surprise and eyebrows go up, a small 'oh' expression, looking at the camera, "
+               "the solid green screen background stays unchanged, same framing",
+    "laugh": "the person laughs softly, genuinely amused, looking at the camera, subtle movement, "
+             "the solid green screen background stays unchanged, same framing",
+    "point": "the person points at the viewer with raised eyebrows and a knowing smile, "
+             "the solid green screen background stays unchanged, same framing",
+    "think": "the person thinks for a moment, eyes up, then raises an eyebrow at the camera, "
+             "the solid green screen background stays unchanged, same framing",
 }
-HF_IMAGE_TO_VIDEO = "https://api.higgsfield.ai/kling-video/v3.0/std/image-to-video"
+HF_VIDEO_MODELS = {   # image-to-video endpoints, cheapest first (per second of output, list price)
+    "kling-2.5": ("https://api.higgsfield.ai/kling-video/v2.5-turbo/standard/image-to-video", 0.042),
+    "kling-3": ("https://api.higgsfield.ai/kling-video/v3.0/std/image-to-video", 0.112),
+}
+DEFAULT_VIDEO_MODEL = "kling-2.5"
 HF_TEXT_TO_IMAGE = "https://api.higgsfield.ai/higgsfield-ai/soul/standard"
 GENERIC_AVATAR = ("candid phone photo of a friendly guy in his early twenties in a black hoodie, headphones around his neck, "
                   "sitting in a gym with a laptop open, looking straight at the camera, natural light, slight smile, "
@@ -1435,25 +1453,30 @@ def avatar_image(name: str, prompt: str) -> str:
     character.png; returns the hosted URL the video model takes as its first frame."""
     out = AVATARS / name / "character.png"
     out.parent.mkdir(parents=True, exist_ok=True)
-    st = hf_wait(hf_json(HF_TEXT_TO_IMAGE, {"prompt": prompt, "aspect_ratio": "1:1", "resolution": "720p"}), f"{name}'s picture")
+    st = hf_wait(hf_json(HF_TEXT_TO_IMAGE, {"prompt": prompt, "aspect_ratio": "9:16", "resolution": "720p"}), f"{name}'s picture")
     imgs = st.get("images") or []
     url = (imgs[0] or {}).get("url") if imgs else None
     if not url:
         die(f"Higgsfield finished but gave no image url: {json.dumps(st)[:300]}")
     data, _ = http_get(url, binary=True, timeout=120)
     out.write_bytes(data)
-    (out.parent / "character.json").write_text(json.dumps({"prompt": prompt, "url": url}, indent=1))
+    (out.parent / "character.json").write_text(json.dumps({"prompt": prompt, "url": url, "green": "green screen" in prompt.lower() or "chroma" in prompt.lower()}, indent=1))
     print(f"  {name}'s picture → {rel(out)}")
     return url
 
 
-def avatar_clip(name: str, reaction: str, image: str, seconds: int = 5) -> Path:
-    """One reaction clip of the character via Higgsfield image-to-video (Kling 3.0 std,
-    sound off), polled until done and downloaded to clips/_avatar/<name>/<reaction>.mp4."""
+def avatar_clip(name: str, reaction: str, image: str, seconds: int = 5, model: str = DEFAULT_VIDEO_MODEL) -> Path:
+    """One reaction clip of the character via Higgsfield image-to-video (Kling 2.5 turbo
+    standard by default, ≈ $0.21 for 5 s; `kling-3` is the pricier, steadier one), polled
+    until done and downloaded to clips/_avatar/<name>/<reaction>.mp4."""
     out = AVATARS / name / f"{reaction}.mp4"
     out.parent.mkdir(parents=True, exist_ok=True)
-    body = {"image_url": image_ref(image), "prompt": REACTIONS[reaction] + ", no text, no captions", "duration": seconds, "sound": "off", "cfg_scale": 0.5}
-    st = hf_wait(hf_json(HF_IMAGE_TO_VIDEO, body), f"{name}/{reaction}")
+    url, _ = HF_VIDEO_MODELS[model]
+    body = {"image_url": image_ref(image), "prompt": REACTIONS[reaction] + ", no text, no captions", "duration": seconds, "cfg_scale": 0.5,
+            "negative_prompt": "text, captions, watermark, background change, camera movement, extra people"}
+    if model == "kling-3":
+        body["sound"] = "off"
+    st = hf_wait(hf_json(url, body), f"{name}/{reaction}")
     url = (st.get("video") or {}).get("url")
     if not url:
         die(f"Higgsfield finished but gave no video url: {json.dumps(st)[:300]}")
@@ -1468,7 +1491,7 @@ def avatars() -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     if AVATARS.is_dir():
         for d in sorted(AVATARS.iterdir()):
-            if d.is_dir() and not d.name.startswith("."):
+            if d.is_dir() and not d.name.startswith(".") and (any(d.glob("*.mp4")) or (d / "character.png").exists()):
                 out[d.name] = sorted(p.stem for p in d.glob("*.mp4"))
     return out
 
@@ -1485,7 +1508,7 @@ def cmd_avatar(args) -> None:
             print(f"{n}: {', '.join(rs) or '(no clips)'}")
         return
     name = re.sub(r"[^A-Za-z0-9_-]+", "_", args.name).strip("_").lower()
-    want = [x.strip() for x in (args.reactions or "").split(",") if x.strip()] or ["nod", "shocked", "laugh", "point"]
+    want = [x.strip() for x in (args.reactions or "").split(",") if x.strip()] or ["agree", "present", "listen"]
     for r in want:
         if r not in REACTIONS:
             die(f"unknown reaction '{r}' — have: {', '.join(REACTIONS)}")
@@ -1495,6 +1518,12 @@ def cmd_avatar(args) -> None:
         print(f"{name} already has {', '.join(want)} — --redo to generate again")
         return
     image = args.image
+    if args.image_only:
+        # a cheap round: just the picture (a cent), to judge the character before any video
+        print(f"drawing {name} with Higgsfield (Soul), picture only…")
+        url = avatar_image(name, args.prompt or GENERIC_AVATAR)
+        print(f"AVATAR_IMAGE: {rel(AVATARS / name / 'character.png')}")
+        return
     if not image:
         # no picture given: Higgsfield draws the character (a generic one, or --prompt)
         meta = AVATARS / name / "character.json"
@@ -1503,9 +1532,12 @@ def cmd_avatar(args) -> None:
         if not image:
             print(f"drawing {name} with Higgsfield (Soul)…")
             image = avatar_image(name, args.prompt or GENERIC_AVATAR)
-    print(f"making {len(todo)} reaction clip{'s' if len(todo) != 1 else ''} of {name} ({', '.join(todo)}) with Higgsfield…")
+    model = args.model or DEFAULT_VIDEO_MODEL
+    if model not in HF_VIDEO_MODELS:
+        die(f"unknown model '{model}' — have: {', '.join(HF_VIDEO_MODELS)}")
+    print(f"making {len(todo)} reaction clip{'s' if len(todo) != 1 else ''} of {name} ({', '.join(todo)}) with Higgsfield {model} (≈ ${HF_VIDEO_MODELS[model][1] * 5 * len(todo):.2f})…")
     for r in todo:
-        avatar_clip(name, r, image)
+        avatar_clip(name, r, image, model=model)
     print(f"AVATAR: {name} {' '.join(sorted(set(have) | set(todo)))}")
 
 
@@ -1514,6 +1546,8 @@ def parse_reactions(spec: str | None, avatar: str, dur: float) -> list[dict]:
     spread evenly over the video."""
     have = avatars().get(avatar) or []
     if not have:
+        if (AVATARS / avatar / "character.png").exists() and not spec:
+            return []   # a picture-only character: it stays on for the whole video
         die(f"avatar '{avatar}' has no clips — avatar {avatar} --image … first (or avatar --list)")
     out = []
     for item in [x.strip() for x in (spec or "").split(",") if x.strip()]:
@@ -1531,6 +1565,14 @@ def parse_reactions(spec: str | None, avatar: str, dur: float) -> list[dict]:
     if out[0]["t"] > 0:
         out.insert(0, {"t": 0.0, "kind": out[0]["kind"]})
     return out
+
+
+def avatar_is_green(name: str) -> bool:
+    meta = AVATARS / name / "character.json"
+    try:
+        return bool(json.loads(meta.read_text()).get("green"))
+    except (OSError, ValueError):
+        return False
 
 
 def pip_mask(size: int, path: Path) -> None:
@@ -1728,6 +1770,41 @@ def render_reformat(project: dict, args) -> None:
             caption_png(line, w, h, png, y_frac=y_lines, size_frac=0.042)
             overlays.append((png, start, start + dl + 0.15))
             t = start + dl + 0.25
+    elif kind == "reaction" and (avatar_is_green(project.get("avatar") or next(iter(avatars()), "")) or not avatars().get(project.get("avatar") or next(iter(avatars()), ""))):
+        # TikTok's green-screen look: the character keyed out of her green background and
+        # standing over the video, bottom-centre, shoulders running off the bottom edge.
+        # With reaction clips they switch at their moments; a still-only character (the
+        # cheap round, no video bought yet) breathes in place for the whole video.
+        avatar = project.get("avatar") or next(iter(avatars()), None)
+        if not avatar:
+            die("no avatar yet — avatar <name> --image <url> makes one")
+        clips_have = avatars().get(avatar) or []
+        still = AVATARS / avatar / "character.png"
+        if not clips_have and not still.exists():
+            die(f"avatar '{avatar}' has neither clips nor a picture")
+        cw = int(w * 0.82)
+        key = "chromakey=0x00ff00:0.28:0.12,despill=type=green"
+        if clips_have:
+            reactions = parse_reactions(",".join(f"{r['t']}:{r['kind']}" for r in (project.get("reactions") or [])), avatar, dur)
+            windows = [(r["t"], reactions[i + 1]["t"] if i + 1 < len(reactions) else dur, AVATARS / avatar / f"{r['kind']}.mp4") for i, r in enumerate(reactions)]
+        else:
+            windows = [(0.0, dur, still)]
+        filters[0] = filters[0].replace("[v0]", "[base]")
+        last_v = "base"
+        for i, (t0, t1, src_clip) in enumerate(windows):
+            if t1 - t0 < 0.2:
+                continue
+            if src_clip.suffix == ".png":
+                cmd += ["-loop", "1", "-t", f"{t1 - t0 + 0.5:.3f}", "-i", str(src_clip)]
+                motion = f"crop=w='iw*0.985':h='ih*0.985':x='(iw-ow)/2+3*sin(t*1.3)':y='(ih-oh)/2+2*sin(t*0.9)',"
+            else:
+                cmd += ["-stream_loop", "-1", "-t", f"{t1 - t0 + 0.5:.3f}", "-i", str(src_clip)]
+                motion = ""
+            filters.append(f"[{n_in}:v]fps={FPS},{motion}scale={cw}:-2,format=rgba,{key},setpts=PTS-STARTPTS+{t0:.3f}/TB[g{i}]")
+            filters.append(f"[{last_v}][g{i}]overlay=(W-w)/2:H-h+h*0.04:format=auto:eof_action=pass:enable='between(t,{t0:.3f},{t1:.3f})'[r{i}]")
+            last_v = f"r{i}"
+            n_in += 1
+        filters.append(f"[{last_v}]null[v0]")
     elif kind == "reaction":
         avatar = project.get("avatar") or next(iter(avatars()), None)
         if not avatar:
@@ -2544,7 +2621,9 @@ def main() -> None:
     s.add_argument("name", nargs="?")
     s.add_argument("--image", metavar="URL|FILE", help="the character's picture (a public https url, or a file sent as a data url); without it Higgsfield draws one")
     s.add_argument("--prompt", metavar="TEXT", help="without --image: what the character looks like (default: a generic one — a guy in a hoodie at the gym with a laptop)")
-    s.add_argument("--reactions", metavar="KINDS", help=f"which clips to make (default nod,shocked,laugh,point; have: {', '.join(REACTIONS)})")
+    s.add_argument("--reactions", metavar="KINDS", help=f"which clips to make (default agree,present,listen; have: {', '.join(REACTIONS)})")
+    s.add_argument("--image-only", action="store_true", help="only draw the character (about a cent) — no reaction clips yet")
+    s.add_argument("--model", choices=list(HF_VIDEO_MODELS), help=f"image-to-video model (default {DEFAULT_VIDEO_MODEL}, the cheapest)")
     s.add_argument("--redo", action="store_true", help="generate again even if the clips exist")
     s.add_argument("--list", action="store_true")
     s.set_defaults(fn=cmd_avatar)
