@@ -552,17 +552,18 @@ def wrap_px(text: str, fnt, max_w: int) -> list[str]:
     return lines
 
 
-def caption_png(text: str, w: int, h: int, path: Path) -> None:
+def caption_png(text: str, w: int, h: int, path: Path, y_frac: float = 0.17, size_frac: float = 0.036) -> None:
     """A transparent w×h layer with the hook caption in TikTok Sans, white with the
-    classic black outline, centred at 17% down — the same look the app bakes."""
+    classic black outline, centred at 17% down — the same look the app bakes.
+    (`y_frac` / `size_frac`: the narrated reformat puts its lines lower and larger.)"""
     from PIL import Image, ImageDraw
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    size = int(h * 0.036)
+    size = int(h * size_frac)
     fnt = font(size)
     stroke = max(2, int(size * 0.13))
     gap = int(size * 0.28)
-    y = int(h * 0.17)
+    y = int(h * y_frac)
     for line in wrap_px(text, fnt, int(w * 0.86)):
         if not line:
             y += size
@@ -1242,7 +1243,10 @@ def cmd_remix(args) -> None:
                 die(f"no such video: {args.video}")
             CUR = import_video(video, args.name)
     src_name = CUR
-    src, clips = load_project(), scan_clips()
+    src = load_project()
+    if src.get("kind") == "reformat":
+        die(f"{CUR} is a reformat of {src['source']} — remix that video instead: remix --video {src['source']}")
+    clips = scan_clips()
     pointer = current_sound()
     pointer_meta = pointer.get("meta", {})
     only = [x.strip() for x in (args.only or "").split(",") if x.strip()] or list(REMIX_RECIPES)
@@ -1340,6 +1344,297 @@ def cmd_remix(args) -> None:
     print(f"REMIXES: {' '.join(made)}")
 
 
+# ---------------------------------------------------------------- reformat
+#
+# A posted reel is already its best cut: re-dealing its shots only makes a worse
+# version. A REFORMAT keeps the cut and changes the framing, each one a format TikTok
+# viewers know: a new hook line on screen, a voice-over in the platform's own
+# text-to-speech style, or the video as the answer to a comment. Each is a project of
+# kind "reformat" (no cuts/slots: a source mp4 + overlays) that `render` bakes.
+
+REFORMATS = {
+    "hook": "the same video with a new hook line on screen",
+    "narrated": "a voice-over in the TikTok text-to-speech style (2-3 lines, each shown as it is said; the original audio ducked under it)",
+    "reply": "the video as the answer to a comment, with the comment bubble on top",
+}
+DEFAULT_VOICE = "Samantha"   # macOS `say`; the closest built-in to the TikTok voice
+
+
+def has_audio(p: Path) -> bool:
+    return bool(run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(p)]).stdout.strip())
+
+
+def tts(text: str, voice: str, out: Path) -> float:
+    """Say `text` with a macOS voice into a 44.1 kHz stereo wav; returns its length."""
+    aiff = out.with_suffix(".aiff")
+    p = subprocess.run(["say", "-v", voice, "-r", "185", "-o", str(aiff), text], capture_output=True, text=True)
+    if p.returncode or not aiff.exists():
+        die(f"`say` failed for voice {voice!r}: {p.stderr.strip()[-300:]} (list voices with `say -v '?'`)")
+    run(["ffmpeg", "-y", "-v", "error", "-i", str(aiff), "-ar", "44100", "-ac", "2", str(out)])
+    aiff.unlink()
+    return video_duration(out)
+
+
+def bubble_png(text: str, user: str | None, w: int, h: int, path: Path, y_frac: float = 0.13) -> None:
+    """The comment-reply bubble TikTok draws over a reply video: a white rounded card,
+    a small grey "Reply to @user's comment" line (only when a real user is given) and
+    the comment in black, centred at 13% down."""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    size = int(h * 0.028)
+    fnt, small = font(size), font(int(size * 0.72))
+    pad, maxw = int(w * 0.045), int(w * 0.74)
+    lines = wrap_px(text, fnt, maxw)
+    line_h = int(size * 1.3)
+    head = f"Reply to @{user}'s comment" if user else "replying to a comment"
+    inner_w = max([fnt.getlength(x) for x in lines] + [small.getlength(head)])
+    bw = int(inner_w + 2 * pad)
+    bh = int(small.size * 1.6 + len(lines) * line_h + 2 * pad - int(size * 0.3))
+    x0, y0 = (w - bw) // 2, int(h * y_frac)
+    d.rounded_rectangle((x0, y0, x0 + bw, y0 + bh), radius=int(size * 0.9), fill=(255, 255, 255, 242))
+    d.text((x0 + pad, y0 + pad * 0.8), head, font=small, fill=(110, 110, 110, 255))
+    y = y0 + pad * 0.8 + small.size * 1.6
+    for ln in lines:
+        d.text((x0 + pad, y), ln, font=fnt, fill=(16, 16, 16, 255))
+        y += line_h
+    img.save(path)
+
+
+def quiet_y(src: Path, dur: float, band: float, candidates: list[float]) -> float:
+    """Where to put an overlay so it does not sit on the source's own on-screen text:
+    the candidate height (fraction of the frame) whose band has the least edge detail
+    across four sampled frames."""
+    import numpy as np
+    from PIL import Image
+    tmp = Path(tempfile.mkdtemp(prefix=".quiet-", dir=OUT))
+    rows = None
+    for i, f in enumerate((0.15, 0.35, 0.55, 0.8)):
+        jpg = tmp / f"{i}.jpg"
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{dur * f:.3f}", "-i", str(src), "-frames:v", "1", "-vf", "scale=180:320", str(jpg)], capture_output=True)
+        if not jpg.exists():
+            continue
+        a = np.asarray(Image.open(jpg).convert("L"), dtype=np.float32)
+        edges = np.abs(np.diff(a, axis=1)).sum(axis=1)
+        rows = edges if rows is None else rows + edges
+    shutil.rmtree(tmp, ignore_errors=True)
+    if rows is None:
+        return candidates[0]
+    n = len(rows)
+    best, best_score = candidates[0], None
+    for y in candidates:
+        a, b = int(y * n), min(n, int((y + band) * n))
+        score = float(rows[a:b].sum())
+        if best_score is None or score < best_score:
+            best, best_score = y, score
+    return best
+
+
+def reformat_summary(project: dict) -> str:
+    kind = project.get("reformat")
+    if kind == "hook":
+        return f'hook: {project.get("hook") or "(none yet)"}'
+    if kind == "narrated":
+        lines = project.get("lines") or []
+        return f'{len(lines)} line{"s" if len(lines) != 1 else ""} ({project.get("voice") or DEFAULT_VOICE}): ' + (" | ".join(lines) if lines else "(none yet)")
+    c = project.get("comment")
+    return f'comment: {c.get("text") if c else "(none yet)"}' + (f' (@{c["user"]})' if c and c.get("user") else "")
+
+
+def render_reformat(project: dict, args) -> None:
+    src = ROOT / project["source"]
+    if not src.exists():
+        die(f"the source video is gone: {project['source']}")
+    kind = project["reformat"]
+    w, h = (540, 960) if args.draft else (W, H)
+    dur = float(project["length"])
+    name = args.name or out_name(project)
+    od = out_dir(project)
+    work = od / f".reformat_{name}"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True)
+    cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)]
+    filters = [f"[0:v]fps={FPS},scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1[v0]"]
+    audio_in = "[0:a]" if has_audio(src) else None
+    if audio_in is None:
+        cmd += ["-f", "lavfi", "-t", f"{dur:.3f}", "-i", "anullsrc=r=44100:cl=stereo"]
+        audio_in = "[1:a]"
+    n_in = 2 if audio_in == "[1:a]" else 1
+    overlays: list[tuple[Path, float | None, float | None]] = []
+    mix: list[str] = []
+    if kind == "hook":
+        if not project.get("hook"):
+            die("no hook line yet — `reformat --hook \"…\"` first (or the Claude button in the app)")
+        cap = work / "hook.png"
+        caption_png(project["hook"], w, h, cap, y_frac=quiet_y(src, dur, 0.12, [0.08, 0.14, 0.20, 0.27, 0.34, 0.42]))
+        overlays.append((cap, None, None))
+    elif kind == "reply":
+        c = project.get("comment")
+        if not c or not c.get("text"):
+            die("no comment yet — `reformat --comment \"…\" [--user name]` first (or the Claude button in the app)")
+        cap = work / "bubble.png"
+        bubble_png(c["text"], c.get("user"), w, h, cap, y_frac=quiet_y(src, dur, 0.14, [0.07, 0.13, 0.20, 0.27, 0.34, 0.42]))
+        overlays.append((cap, None, None))
+    elif kind == "narrated":
+        lines = [x for x in (project.get("lines") or []) if x.strip()]
+        if not lines:
+            die("no narration yet — `reformat --lines \"first|second|third\"` first (or the Claude button in the app)")
+        voice = project.get("voice") or DEFAULT_VOICE
+        y_lines = quiet_y(src, dur, 0.14, [0.50, 0.58, 0.64, 0.70, 0.76])
+        t = 0.4
+        slot = max(0.0, (dur - 0.8)) / len(lines)
+        for i, line in enumerate(lines):
+            wav = work / f"line{i}.wav"
+            dl = tts(line, voice, wav)
+            start = min(max(t, i * slot + 0.4), max(0.4, dur - dl - 0.2))
+            cmd += ["-i", str(wav)]
+            mix.append(f"[{n_in}:a]adelay={int(start * 1000)}|{int(start * 1000)}[s{i}]")
+            n_in += 1
+            png = work / f"line{i}.png"
+            caption_png(line, w, h, png, y_frac=y_lines, size_frac=0.042)
+            overlays.append((png, start, start + dl + 0.15))
+            t = start + dl + 0.25
+    # video: the source scaled, then each overlay (whole video, or a window)
+    last = "v0"
+    for i, (png, a, b) in enumerate(overlays):
+        cmd += ["-i", str(png)]
+        window = f":enable='between(t,{a:.3f},{b:.3f})'" if a is not None else ""
+        filters.append(f"[{last}][{n_in}:v]overlay=0:0:format=auto{window}[v{i + 1}]")
+        last = f"v{i + 1}"
+        n_in += 1
+    filters.append(f"[{last}]format=yuv420p[vo]")
+    # audio: the original as is, or ducked under the voice
+    if mix:
+        filters.append(f"{audio_in}volume=0.3[a0]")
+        filters += mix
+        filters.append("[a0]" + "".join(f"[s{i}]" for i in range(len(mix))) + f"amix=inputs={len(mix) + 1}:duration=first:normalize=0[ao]")
+    else:
+        filters.append(f"{audio_in}anull[ao]")
+    cmd += ["-filter_complex", ";".join(filters), "-map", "[vo]", "-map", "[ao]", "-r", str(FPS), "-t", f"{dur:.3f}"]
+    out_path = od / f"{name}.mp4"
+    tail = ["-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-movflags", "+faststart", str(out_path)]
+    vt = ["-c:v", "h264_videotoolbox", "-b:v", "4M" if args.draft else "12M", "-profile:v", "high", "-allow_sw", "1"]
+    x264 = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23" if args.draft else "19"]
+    if args.verbose:
+        print(" ".join(cmd + vt + tail))
+    p = subprocess.run(cmd + vt + tail, text=True, capture_output=True)
+    if p.returncode:
+        p = subprocess.run(cmd + x264 + tail, text=True, capture_output=True)
+        if p.returncode:
+            die(f"ffmpeg failed:\n{p.stderr[-3000:]}")
+    shutil.rmtree(work, ignore_errors=True)
+    keep_render(out_path, name, args.draft, f"{kind} reformat · {dur:.1f}s · {w}x{h}")
+
+
+def keep_render(out_path: Path, name: str, draft: bool, what: str) -> None:
+    """versions/<name>.vN.mp4 and final/<name>.mp4 copies of a finished render, as every render keeps."""
+    vdir = out_path.parent / "versions"
+    vdir.mkdir(exist_ok=True)
+    vers = sorted(vdir.glob(f"{name}.v*.mp4"), key=lambda p: natural_key(p.name))
+    nxt = (int(re.search(r"\.v(\d+)\.mp4$", vers[-1].name).group(1)) + 1) if vers else 1
+    shutil.copy2(out_path, vdir / f"{name}.v{nxt}.mp4")
+    if not draft:
+        FINAL.mkdir(exist_ok=True)
+        shutil.copy2(out_path, FINAL / f"{name}.mp4")
+    size = out_path.stat().st_size / 1e6
+    print(f"rendered {rel(out_path)} · {what} · {size:.1f} MB" + ("" if draft else f" → final/{name}.mp4") + f" (copy: versions/{name}.v{nxt}.mp4)")
+
+
+def import_reformat_source(video: str, name: str | None, cookies: str | None) -> tuple[str, Path]:
+    """The posted video (a link or a file) under clips/<F>/.source/, its audio in the
+    pool (the pointer every reformat of it shares), and a frame sheet of it for Claude
+    to read. Returns (F, the source path)."""
+    if re.match(r"https?://", video):
+        folder = name or next_folder("reel")
+        src = fetch_video(video, CLIPS / folder / ".source", cookies)
+    else:
+        p = Path(video).expanduser()
+        p = p if p.is_absolute() else ROOT / p
+        if not p.exists():
+            die(f"no such video: {video}")
+        folder = name or re.sub(r"[^A-Za-z0-9_-]+", "_", p.stem).strip("_").lower() or "reel"
+        dest_dir = CLIPS / folder / ".source"
+        if p.parent.resolve() == dest_dir.resolve():
+            src = p
+        else:
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            src = dest_dir / p.name
+            shutil.copy2(p, src)
+    return folder, src
+
+
+def cmd_reformat(args) -> None:
+    """Three reformats of a posted video (hook / narrated / reply) as projects
+    <F>_1.._3, or — on one of them — set its copy and re-render."""
+    global CUR
+    lines = [x.strip() for x in (args.lines or "").split("|") if x.strip()] if args.lines is not None else None
+    comment = ({"text": args.comment.strip(), "user": (args.user or "").lstrip("@").strip() or None} if args.comment else None)
+
+    def apply_copy(project: dict) -> None:
+        if args.hook is not None and project["reformat"] == "hook":
+            project["hook"] = args.hook.strip() or None
+            project["caption"] = project["hook"]
+        if lines is not None and project["reformat"] == "narrated":
+            project["lines"] = lines
+        if comment is not None and project["reformat"] == "reply":
+            project["comment"] = comment
+        if args.voice:
+            project["voice"] = args.voice
+
+    if not args.video:
+        project = load_project()
+        if project.get("kind") != "reformat":
+            die(f"{CUR} is a cut video, not a reformat — `reformat --video <file|link>` makes reformats of a posted video")
+        apply_copy(project)
+        save_project(project)
+        print(f"{CUR}: {project['reformat']} reformat of {Path(project['source']).name} — {reformat_summary(project)}")
+        if args.render:
+            render_reformat(project, argparse.Namespace(draft=False, name=None, verbose=False))
+        return
+
+    only = [x.strip() for x in (args.only or "").split(",") if x.strip()] or list(REFORMATS)
+    for k in only:
+        if k not in REFORMATS:
+            die(f"unknown reformat '{k}' — have: {', '.join(REFORMATS)}")
+    folder, src = import_reformat_source(args.video, args.name, args.cookies)
+    dur = video_duration(src)
+    first = next_name(folder)
+    CUR = first
+    cmd_sound(argparse.Namespace(source=str(src), cookies=None))
+    pointer = load_json(PROJECTS / f"{first}.sound.json")
+    n = max(6, min(30, round(dur / 4)))
+    times = [min(dur * i / n + 0.05, max(0.0, dur - 0.1)) for i in range(n)]
+    sheet = out_dir(None, str(src)) / f"_frames_{src.stem}.jpg"
+    tile([(str(src), t) for t in times], [f"{t:.1f}s" for t in times], sheet, cols=6)
+    print(f"frame sheet of the video: {rel(sheet)}")
+    made: list[str] = []
+    for kind in only:
+        name = next_name(folder)
+        CUR = name
+        save_json(PROJECTS / f"{name}.sound.json", pointer)
+        project = {
+            "name": name, "kind": "reformat", "reformat": kind, "source": rel(src), "clips": [],
+            "sound": pointer["sound"], "beats": pointer["beats"], "audio_start": 0.0, "length": round(dur, 3),
+            "density": dict(DEFAULT_DENSITY), "excluded": [], "hero": None, "caption": None, "cuts": [], "slots": [],
+            "hook": None, "lines": [], "comment": None, "voice": args.voice or DEFAULT_VOICE,
+        }
+        apply_copy(project)
+        save_project(project)
+        # the feed's poster and the page's storyboard: the video's own frames
+        shutil.copy2(sheet, od_board := out_dir(project) / f"_{name}_board.jpg")
+        print(f"=== {name}: {kind} reformat of {src.name} — {REFORMATS[kind]} · {reformat_summary(project)} · {rel(od_board)}")
+        if args.render:
+            try:
+                render_reformat(project, argparse.Namespace(draft=False, name=None, verbose=False))
+            except SystemExit:
+                print(f"  ({name} not rendered yet: it needs its copy first)")
+        made.append(name)
+    CUR = first
+    print(f"\nreformats of {src.name}: {' '.join(made)}")
+    print(f"FRAMES: {rel(sheet)}")
+    print(f"REFORMATS: {' '.join(made)}")
+
+
 # -------------------------------------------------------------------- show
 
 def show(project: dict, clips: list[dict]) -> None:
@@ -1389,11 +1684,25 @@ def show(project: dict, clips: list[dict]) -> None:
 
 
 def cmd_show(_args) -> None:
+    project = load_project()
+    if project.get("kind") == "reformat":
+        print(f"{CUR}: {project['reformat']} reformat of {project['source']} · {project['length']:.1f}s · {reformat_summary(project)}")
+        return
     show(load_project(), scan_clips())
 
 
 def cmd_board(_args) -> None:
-    project, clips = load_project(), scan_clips()
+    project = load_project()
+    if project.get("kind") == "reformat":
+        src = ROOT / project["source"]
+        dur = float(project["length"])
+        n = max(6, min(30, round(dur / 4)))
+        times = [min(dur * i / n + 0.05, max(0.0, dur - 0.1)) for i in range(n)]
+        out = out_dir(project) / f"_{out_name(project)}_board.jpg"
+        tile([(str(src), t) for t in times], [f"{t:.1f}s" for t in times], out, cols=6)
+        print(f"frames of the source video (a reformat keeps its cut): {rel(out)}")
+        return
+    clips = scan_clips()
     byid = {c["id"]: c for c in clips}
     out = out_dir(project) / f"_{out_name(project)}_board.jpg"
     durs = slot_durs(project)
@@ -1636,7 +1945,11 @@ def cmd_shuffle(args) -> None:
 # ------------------------------------------------------------------ render
 
 def cmd_render(args) -> None:
-    project, clips = load_project(), scan_clips()
+    project = load_project()
+    if project.get("kind") == "reformat":
+        render_reformat(project, args)
+        return
+    clips = scan_clips()
     byid = {c["id"]: c for c in clips}
     OUT.mkdir(exist_ok=True)
     cuts, start = project["cuts"], project["cuts"][0]
@@ -1688,18 +2001,9 @@ def cmd_render(args) -> None:
         p = subprocess.run(cmd + x264 + tail, text=True, capture_output=True)
         if p.returncode:
             die(f"ffmpeg failed:\n{p.stderr[-3000:]}")
-    # keep a numbered copy in versions/ so earlier renders survive the next one
-    vdir = out_path.parent / "versions"
-    vdir.mkdir(exist_ok=True)
-    vers = sorted(vdir.glob(f"{name}.v*.mp4"), key=lambda p: natural_key(p.name))
-    nxt = (int(re.search(r"\.v(\d+)\.mp4$", vers[-1].name).group(1)) + 1) if vers else 1
-    shutil.copy2(out_path, vdir / f"{name}.v{nxt}.mp4")
-    if not args.draft:  # the finished video, flat, in the one folder Ernest opens
-        FINAL.mkdir(exist_ok=True)
-        shutil.copy2(out_path, FINAL / f"{name}.mp4")
-    size = out_path.stat().st_size / 1e6
-    print(f"rendered {rel(out_path)} · {total:.2f}s · {n} cuts · {w}x{h} · {size:.1f} MB"
-          + ("" if args.draft else f" → final/{name}.mp4") + f" (copy: versions/{name}.v{nxt}.mp4)")
+    # keep a numbered copy in versions/ so earlier renders survive the next one, and the
+    # finished video flat in final/, the one folder Ernest opens
+    keep_render(out_path, name, args.draft, f"{total:.2f}s · {n} cuts · {w}x{h}")
 
 
 # ------------------------------------------------------------------ export
@@ -1946,6 +2250,18 @@ def main() -> None:
     s.add_argument("--name", metavar="FOLDER", help="with --video: the clips folder / project prefix (default: the file's name, or remixN for a link)")
     s.add_argument("--cookies", metavar="BROWSER", help="with --video <link> on Instagram: chrome / safari / firefox login for yt-dlp")
     s.set_defaults(fn=cmd_remix)
+    s = sub.add_parser("reformat", help="three reformats of a posted video (hook line / TikTok-voice narration / comment reply) as projects <F>_1..3 — or, on one of them, set its copy")
+    s.add_argument("--video", metavar="MP4|LINK", help="the posted video: a file, or a TikTok / Instagram / YouTube link")
+    s.add_argument("--name", metavar="FOLDER", help="with --video: the folder / project prefix (default: the file's name, or reelN for a link)")
+    s.add_argument("--cookies", metavar="BROWSER", help="with an Instagram link: chrome / safari / firefox login for yt-dlp")
+    s.add_argument("--only", metavar="KINDS", help="a subset, e.g. hook,reply")
+    s.add_argument("--hook", metavar="TEXT", help="the hook line on screen (hook reformat)")
+    s.add_argument("--lines", metavar="A|B|C", help="the narration, lines separated by | (narrated reformat)")
+    s.add_argument("--voice", metavar="VOICE", help=f"a macOS voice for the narration (default {DEFAULT_VOICE}; `say -v '?'` lists them)")
+    s.add_argument("--comment", metavar="TEXT", help="the comment the video answers (reply reformat)")
+    s.add_argument("--user", metavar="HANDLE", help="who wrote the comment, if real (shown as 'Reply to @user')")
+    s.add_argument("--render", action="store_true", help="render too (each one that has its copy)")
+    s.set_defaults(fn=cmd_reformat)
     s = sub.add_parser("shots", help="cut a finished video into its shots (scene detection) as clips in clips/<name>/")
     s.add_argument("video")
     s.add_argument("--into", metavar="FOLDER", help="clips folder name (default: the file's name)")

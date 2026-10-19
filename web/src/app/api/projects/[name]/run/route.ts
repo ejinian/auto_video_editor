@@ -33,6 +33,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ name: s
     case "drop": case "restore": case "hero": if (num(a.clip)) argv = [b.cmd, ...num(a.clip).split(/[\s,]+/).filter(Boolean)]; break;
     case "shuffle": argv = ["shuffle", ...(num(a.seed) ? ["--seed", num(a.seed)] : [])]; break;
     case "caption": argv = ["caption", num(a.text) || "none"]; break;
+    case "reformat": {
+      // a reformat's copy: hook line / narration lines / comment (+ user) / voice, then render
+      argv = ["reformat"];
+      if (a.hook !== undefined) argv.push("--hook", num(a.hook));
+      if (a.lines !== undefined) argv.push("--lines", num(a.lines));
+      if (a.comment !== undefined) argv.push("--comment", num(a.comment));
+      if (num(a.user)) argv.push("--user", num(a.user));
+      if (num(a.voice)) argv.push("--voice", num(a.voice));
+      if (a.render) argv.push("--render");
+      break;
+    }
     case "length": if (num(a.value)) argv = ["length", num(a.value)]; break;
     case "start": if (num(a.value)) argv = ["start", num(a.value)]; break;
     case "density": {
@@ -44,7 +55,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ name: s
   }
   if (!argv) return Response.json({ error: "missing arguments" }, { status: 400 });
   const cmds = [beatcut("-p", name, ...argv)];
-  if (!["render", "render-draft", "export", "export-open", "board", "frames"].includes(b.cmd)) cmds.push(beatcut("-p", name, "board"));
+  if (!["render", "render-draft", "export", "export-open", "board", "frames", "reformat"].includes(b.cmd)) cmds.push(beatcut("-p", name, "board"));
   if (b.cmd === "export-open") cmds[0] = [...cmds[0]]; // CapCut must be quit first; beatcut.py handles it
   const job = startJob(`${name}: ${argv.join(" ")}`, cmds, `/video/${name}`);
   return Response.json({ job: job.id });

@@ -123,6 +123,31 @@ the four cards with their status on the source); feed cards carry a "remix of X"
 **Remix with Claude** is an ask: run `remix`, read each board, improve openers/sounds,
 `caption` a different hook line on each, write each post caption, render all four.
 
+## Reformat — a posted reel, same cut, three framings (2026-10-19)
+
+A posted reel is already its best cut; re-dealing its shots only makes a worse one (seen
+on the first link remixes). `reformat --video <mp4|LINK> [--name F] [--cookies chrome]
+[--only hook,reply] [--hook "…"] [--lines "a|b|c"] [--voice Samantha] [--comment "…"
+[--user handle]] [--render]` keeps the cut and makes THREE projects `F_1..3` of
+`kind: "reformat"` (no cuts/slots; `source` = the mp4 under `clips/F/.source/`, F defaults
+to `reelN` for a link): **hook** (a new hook line on screen), **narrated** (2-3 lines said
+by a macOS voice in the TikTok text-to-speech style — `say -v Samantha`, each line shown
+as it is said, the original audio ducked to 0.3 under it) and **reply** (the comment the
+video answers in a white TikTok reply bubble; "Reply to @user" only when `--user` names
+a real commenter, else "replying to a comment"). The audio joins the pool, a frame sheet
+goes to `out/F/_frames_<stem>.jpg` and is copied as each project's board. Overlays are
+placed in the quietest band of the frame (`quiet_y`: least horizontal edge detail across
+four sampled frames) so they do not sit on the source's own text. `render` on such a
+project is `render_reformat` (scale/pad to 1080x1920, PNG overlays, amix); `show`,
+`board` and `remix` know the kind. On one of them, `reformat -p F_2 --lines … --render`
+sets its copy and renders. Prints `FRAMES:` and `REFORMATS: F_1 F_2 F_3`.
+In the app the Remix page's default is **Reformat ×3** (Re-cut ×4 is the other option,
+for raw footage); the job lands on `/video/F_1?ask=reformat`, which fires a Claude ask
+(`ReformatEditor`): read the frame sheet, write the hook, the narration and the comment
+for all three, lint with /ig-human, render each, write the captions. The page edits the
+copy by hand too (Save & render = `run` cmd `reformat`), and the three framings show as a
+strip on each of them; feed cards carry a "hook reformat" tag.
+
 ## CapCut export — the edit as an editable project (2026-10-07)
 
 `-p dayN_V export [--open]` writes the SAME edit `render` would bake (identical frame math)
@@ -257,6 +282,7 @@ sits in several slots — then read `show` and pick the slot number yourself.
 | "fewer cuts" / "more cuts" | `density calm=8 hype=4` / `density hype=1` (rebuilds) |
 | "different clips in the same cuts" | `shuffle` |
 | "remix this" / "four more posts from this" | `remix --render` (see Remix) |
+| "this reel did numbers, repost it" (a posted video) | `reformat --video <link> --render` then the copy (see Reformat) |
 | "put text on it: …" | `caption "…"` (`caption none` clears) |
 | always after an edit | `render` — then tell them `out/final.mp4` is updated |
 

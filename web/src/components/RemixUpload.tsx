@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Link2, Shuffle, Upload } from "lucide-react";
 import { useRef, useState } from "react";
+import { Seg } from "@/components/new/Seg";
 import { useJob } from "@/components/useJob";
 import type { ProjectSummary } from "@/lib/types";
 
@@ -24,6 +25,9 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
   const [link, setLink] = useState("");
   const [cookies, setCookies] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
+  // reformat (default): the same cut with three framings — right for a finished reel.
+  // recut: four re-cuts of its shots — right for raw footage, worse for a finished reel.
+  const [mode, setMode] = useState<"reformat" | "recut">("reformat");
 
   // a posted video by link: the CLI downloads it (tikwm for TikTok, yt-dlp otherwise) and
   // goes on like an uploaded file; the job page shows the download as it happens
@@ -33,7 +37,7 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
     setError(null);
     setLinkBusy(true);
     try {
-      const r = await fetch("/api/remix", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ link: l, name: name.trim(), cookies: cookies ? "chrome" : undefined }) });
+      const r = await fetch("/api/remix", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ link: l, name: name.trim(), cookies: cookies ? "chrome" : undefined, mode }) });
       const j = (await r.json().catch(() => ({}))) as { job?: string; error?: string };
       if (!r.ok || !j.job) { setError(j.error ?? `request failed (${r.status})`); return; }
       router.push(`/jobs/${j.job}`);
@@ -49,6 +53,7 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
     setPct(0);
     const fd = new FormData();
     fd.append("name", name.trim());
+    fd.append("mode", mode);
     fd.append("file", file, file.name);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/remix");
@@ -72,7 +77,13 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
             <label className="label !mt-0" htmlFor="remix-name">Name <span className="text-muted font-normal">(optional)</span></label>
             <input id="remix-name" className="input font-mono" placeholder="from the file name" value={name} onChange={(e) => setName(e.target.value)} disabled={uploading} />
           </div>
-          <div className="text-muted text-xs pb-2 flex-1 min-w-[240px]">Paste the post&apos;s link or drop the file. The video is cut into its shots (<code>clips/&lt;name&gt;/</code>), its audio joins the sound pool, and four new videos are cut and rendered from those shots: a hook cut, the same story on another sound, a reorder, a long version. A few minutes.</div>
+          <div className="text-muted text-xs pb-2 flex-1 min-w-[240px]">Paste the post&apos;s link or drop the file.</div>
+        </div>
+        <div className="mb-4">
+          <Seg<"reformat" | "recut"> ariaLabel="what to make" value={mode} onChange={setMode} options={[
+            { value: "reformat", label: "Reformat ×3", sub: "the same cut, three framings: a new hook line, a TikTok-voice narration, a comment reply — Claude writes the copy" },
+            { value: "recut", label: "Re-cut ×4", sub: "split into shots and cut again: hook cut, another sound, reorder, long version — for raw footage, not a finished reel" },
+          ]} />
         </div>
         <div className="flex gap-2 items-center mb-3">
           <Link2 size={16} className="text-muted shrink-0" />
@@ -82,7 +93,7 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
             onChange={(e) => setLink(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void fromLink(); } }}
           />
-          <button type="button" className="btn" disabled={linkBusy || uploading || !link.trim()} onClick={() => void fromLink()}>{linkBusy ? "Starting…" : "Remix the link"}</button>
+          <button type="button" className="btn" disabled={linkBusy || uploading || !link.trim()} onClick={() => void fromLink()}>{linkBusy ? "Starting…" : mode === "recut" ? "Re-cut the link" : "Reformat the link"}</button>
         </div>
         <label className="flex items-center gap-2 text-xs text-muted mb-3"><input type="checkbox" checked={cookies} onChange={(e) => setCookies(e.target.checked)} /> use Chrome&apos;s login for Instagram (macOS asks for Keychain access)</label>
         <div className="text-muted text-xs mb-2">…or the file itself:</div>
