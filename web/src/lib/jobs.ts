@@ -7,7 +7,8 @@ import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import { BEATCUT_PY, ROOT } from "./paths";
-import type { JobInfo } from "./types";
+import { jobProject, jobSteps, jobStepIndex } from "./jobmeta";
+import type { JobInfo, JobSummary } from "./types";
 
 interface Store { jobs: Map<string, JobInfo>; events: EventEmitter; queue: Promise<void> }
 
@@ -32,6 +33,19 @@ export function listJobs(): JobInfo[] {
   return [...store.jobs.values()].sort((a, b) => b.startedAt - a.startedAt);
 }
 
+/** What /api/jobs and the pages' chips get: the log cut to its tail, plus the running step. */
+export function jobSummaries(): JobSummary[] {
+  return listJobs().map((j) => ({
+    ...j, project: j.project ?? jobProject(j.cmds), steps: j.steps ?? jobSteps(j.cmds), step: jobStepIndex(j.log), log: j.log.slice(-400),
+  }));
+}
+
+/** The job currently cutting or rendering `project`, if any: the oldest unfinished one,
+ *  since jobs run in the order they were started (queued ones behind it wait their turn). */
+export function runningJobFor(project: string): JobSummary | null {
+  return jobSummaries().filter((j) => !j.done && j.project === project).at(-1) ?? null;
+}
+
 export function getJob(id: string): JobInfo | undefined {
   return store.jobs.get(id);
 }
@@ -54,7 +68,8 @@ function emit(j: JobInfo) {
 export function startJob(title: string, cmds: string[][], then: string | null = null): JobInfo {
   const job: JobInfo = {
     id: randomUUID().slice(0, 8),
-    title, cmds, log: "", done: false, ok: true, then,
+    title, cmds, project: jobProject(cmds), steps: jobSteps(cmds),
+    log: "", done: false, ok: true, then,
     startedAt: Date.now(), endedAt: null,
   };
   store.jobs.set(job.id, job);

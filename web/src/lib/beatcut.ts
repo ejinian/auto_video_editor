@@ -12,6 +12,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { hasChatAuth } from "./chatAuth";
 import { CLIPS, FINAL, OUT, PROJECTS, ROOT, SOUND, VIDEO_EXT, rel } from "./paths";
+import { POSTED_FILE, readPosted, unmarkPosted } from "./posted";
 import type {
   ClipInfo,
   FolderInfo,
@@ -425,6 +426,7 @@ export async function projects(): Promise<Array<ProjectSummary & { soundPath: st
   if (!exists(PROJECTS)) return [];
   const files = (await fsp.readdir(PROJECTS)).filter((f) => f.endsWith(".json") && !f.endsWith(".sound.json"));
   const out: Array<ProjectSummary & { soundPath: string }> = [];
+  const postedAll = readPosted();
   for (const f of files) {
     const name = f.slice(0, -5);
     const pj = path.join(PROJECTS, f);
@@ -445,6 +447,7 @@ export async function projects(): Promise<Array<ProjectSummary & { soundPath: st
       mp4: mst ? rel(mp4) : null,
       mtime: pst?.mtimeMs ?? 0,
       inFinal: exists(path.join(FINAL, `${name}.mp4`)),
+      posted: postedAll[name] ?? null,
     });
   }
   out.sort((a, b) => b.mtime - a.mtime);
@@ -565,6 +568,7 @@ export async function projectDetail(name: string): Promise<ProjectDetail | null>
     realLength: pr.cuts?.length ? pr.cuts[pr.cuts.length - 1] - pr.cuts[0] : pr.length,
     capcutDraft: exists(path.join(CAPCUT_DRAFTS, name)),
     inFinal: exists(path.join(FINAL, `${name}.mp4`)),
+    posted: readPosted()[name] ?? null,
   };
 }
 
@@ -583,9 +587,12 @@ export function deleteProject(name: string): string[] {
   ];
   const vdir = path.join(od, "versions");
   if (exists(vdir)) for (const f of fs.readdirSync(vdir)) if (f.startsWith(`${name}.v`)) targets.push(path.join(vdir, f));
+  const sdir = path.join(od, ".slots");
+  if (exists(sdir)) for (const f of fs.readdirSync(sdir)) if (f.startsWith(`${name}.s`)) targets.push(path.join(sdir, f));
   for (const t of targets) {
     if (exists(t)) { fs.rmSync(t); removed.push(rel(t)); }
   }
+  if (unmarkPosted(name)) removed.push(`${rel(POSTED_FILE)} (entry)`);
   return removed;
 }
 
