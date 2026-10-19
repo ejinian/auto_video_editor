@@ -1,6 +1,6 @@
-clips/
-sound/
-out/
+/clips/
+/sound/
+/out/
 .probe.json
 .thumbs/
 __pycache__/
