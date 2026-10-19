@@ -53,7 +53,7 @@ export default async function Home() {
             <Link key={p.name} href={`/video/${encodeURIComponent(p.name)}`} className="card vcard hover:border-acc">
               <Poster sources={sources} alt={p.name} />
               <div className="body">
-                <div className="name">{p.name}</div>
+                <div className="name">{p.name}{p.remixOf && <span className="tag ml-1.5 font-normal" title={`a ${p.remix} remix of ${p.remixOf}`}>remix of {p.remixOf}</span>}</div>
                 <div className="meta" title={p.sound}>
                   {p.folder ? <>shoot {p.folder} · </> : null}{p.length.toFixed(0)} s · {p.slots} shots
                 </div>

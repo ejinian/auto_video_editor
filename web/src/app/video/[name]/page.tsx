@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CaptionEditor } from "@/components/CaptionEditor";
 import { ClipGrid } from "@/components/ClipGrid";
 import { AllCommands, EditToolbar } from "@/components/EditPanel";
+import { RemixStrip } from "@/components/RemixStrip";
 import { StatusTag, Tag } from "@/components/Tag";
 import { VideoEditor } from "@/components/VideoEditor";
 import { projectDetail, sounds } from "@/lib/beatcut";
@@ -44,6 +45,7 @@ export default async function Video({ params }: { params: Promise<{ name: string
       </p>
 
       <EditToolbar d={d} sounds={snds} />
+      <RemixStrip d={d} />
 
       {missing.length > 0 && (
         <div className="card border-bad/60 mt-4 text-sm">

@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Shuffle, Sparkles } from "lucide-react";
+import { askClaude } from "@/components/chat/ask";
 import { useJob } from "@/components/useJob";
 import type { ProjectDetail, SoundInfo } from "@/lib/types";
 
@@ -60,6 +62,11 @@ export function EditToolbar({ d, sounds }: { d: ProjectDetail; sounds: SoundInfo
         <button className="btn sec" disabled={busy} onClick={() => { setExportHint(true); onRun("export-open", {}); }} title="writes the edit as a CapCut project (every cut still editable) and opens CapCut inside it. Quit CapCut first if it's open.">Open in CapCut</button>
         <button className="btn sec" disabled={busy} onClick={() => onRun("frames", {})} title="timestamped frame sheets for every clip in this video">Frame sheets</button>
         <button className={`btn sec ${varOpen ? "!border-acc" : ""}`} onClick={() => setVarOpen(!varOpen)} title="the same clips and settings with the next seed, as a new video">Make variation</button>
+        <button className="btn sec" disabled={busy} onClick={() => run(`/api/projects/${encodeURIComponent(name)}/remix`, {})} title="four new videos from these clips, rendered: a hook cut, the same story on another sound, a reorder, a long version (remix --render, ~5 min)"><Shuffle size={14} /> Remix ×4</button>
+        <button className="btn sec" onClick={() => void askClaude({
+          prompt: `Remix ${name}: run \`uv run beatcut.py -p ${name} remix\` (four projects tagged remix_of: hook cut, another sound, reorder, long version — no render). Then read each new project's storyboard and improve it where it helps (a better opener or sound with \`plan\` again, or \`set\`/\`swap\`), give each a different on-screen hook line with \`caption\`, write each one's post caption with /ig-caption + /ig-human into its caption file, and render all four. End with the line \`REMIXES: <name> <name> <name> <name>\`.`,
+          send: true, newThread: true, from: `Remix · ${name}`, context: `project:${name}`,
+        })} title="a new chat: Claude runs remix, then tunes each of the four, writes their hooks and captions, and renders"><Sparkles size={14} /> Remix with Claude</button>
         <span className="flex-1" />
         {!confirmDelete
           ? <button className="btn bad sm" onClick={() => setConfirmDelete(true)}>Delete video</button>

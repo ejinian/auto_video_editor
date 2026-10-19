@@ -448,6 +448,8 @@ export async function projects(): Promise<Array<ProjectSummary & { soundPath: st
       mtime: pst?.mtimeMs ?? 0,
       inFinal: exists(path.join(FINAL, `${name}.mp4`)),
       posted: postedAll[name] ?? null,
+      remixOf: data.remix_of ?? null,
+      remix: data.remix ?? null,
     });
   }
   out.sort((a, b) => b.mtime - a.mtime);
@@ -569,6 +571,9 @@ export async function projectDetail(name: string): Promise<ProjectDetail | null>
     capcutDraft: exists(path.join(CAPCUT_DRAFTS, name)),
     inFinal: exists(path.join(FINAL, `${name}.mp4`)),
     posted: readPosted()[name] ?? null,
+    remixOf: pr.remix_of ?? null,
+    remix: pr.remix ?? null,
+    remixes: (await projects()).filter((p) => p.remixOf === name).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
   };
 }
 
