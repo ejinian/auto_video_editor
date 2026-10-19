@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Plus } from "lucide-react";
+import { AlertTriangle, Plus, Shuffle } from "lucide-react";
 import path from "node:path";
 import { exists, folders, health, pendingPlans, projectOut, projects, readIdeas } from "@/lib/beatcut";
 import { mediaUrl, mmss } from "@/lib/format";
@@ -37,7 +37,10 @@ export default async function Home() {
           <h1>Videos</h1>
           <p className="lede">Newest first. A card is a video: open it to fix the edit, or press <b>Post it</b> on it when the chip says ready. Nothing is ever posted by the app.</p>
         </div>
-        <Link href="/new" className="btn lg no-underline hover:no-underline"><Plus size={18} /> New video</Link>
+        <div className="flex gap-2">
+          <Link href="/remix" className="btn sec lg no-underline hover:no-underline" title="drop a reel that did numbers, get four new posts from its shots"><Shuffle size={18} /> Remix</Link>
+          <Link href="/new" className="btn lg no-underline hover:no-underline"><Plus size={18} /> New video</Link>
+        </div>
       </div>
 
       {ps.length === 0 && (
