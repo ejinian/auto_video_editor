@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Loader2, MessageSquare, Plus, Send, Square, Trash2, X } from "lucide-react";
 import { Markdown } from "@/components/Markdown";
+import { ASK_DONE_EVENT, ASK_EVENT, type AskDetail, type AskDoneDetail } from "@/components/chat/ask";
 import type { ChatEvent } from "@/lib/agent";
 import type { ChatThread } from "@/lib/chats";
 import type { HistoryTurn } from "@/lib/history";
@@ -16,8 +17,14 @@ type Part =
 interface Turn {
   role: "user" | "assistant";
   parts: Part[];
+  /** Which button on which page sent this turn ("Fix it · day3_1"); typed turns have none. */
+  from?: string;
   meta?: { costUsd: number; turns: number; durationMs: number; isError: boolean; errors?: string[] };
 }
+
+/** Options for one send: an explicit thread (null = new) and, for an ask from a page
+ *  button, where it came from and the id to answer through `beatcut:chat:done`. */
+interface SendOpts { sid?: string | null; from?: string; askId?: string; context?: string | null }
 
 const OPEN_KEY = "beatcut.chat.open";
 const THREAD_KEY = "beatcut.chat.thread";
@@ -105,21 +112,36 @@ export function ChatPanel() {
   }, [loadHistory]);
   useEffect(() => { document.documentElement.classList.toggle("chat-open", open); }, [open]);
 
-  // another part of the page ("Let Claude pick" in the New video flow) asks for the panel
-  // with a question already typed; nothing is sent until the user presses Enter
+  // a button on the page asks Claude something (askClaude() in chat/ask.ts): the panel
+  // opens, optionally on a new thread, and either puts the question in the box (nothing
+  // is sent until the user presses Enter) or sends it at once and answers the ask with a
+  // `beatcut:chat:done` event when the turn is over
   const wantFocus = useRef(false);
+  const sendRef = useRef<(text?: string, opts?: SendOpts) => Promise<void>>(async () => undefined);
   useEffect(() => {
     const h = (e: Event) => {
-      const prompt = (e as CustomEvent<{ prompt?: string }>).detail?.prompt;
-      if (typeof prompt !== "string") return;
-      setInput(prompt);
-      wantFocus.current = true;
+      const d = (e as CustomEvent<Partial<AskDetail>>).detail;
+      if (typeof d?.prompt !== "string" || typeof d.id !== "string") return;
       setOpen(true);
       try { localStorage.setItem(OPEN_KEY, "1"); } catch { /* none */ }
-      setTimeout(() => taRef.current?.focus(), 0);
+      if (d.newThread) {
+        historyFor.current = null;
+        setSessionId(null);
+        try { localStorage.removeItem(THREAD_KEY); } catch { /* none */ }
+        setTurns([]);
+        setError(null);
+        setShowThreads(false);
+      }
+      if (d.send) {
+        void sendRef.current(d.prompt, { sid: d.newThread ? null : undefined, from: d.from, askId: d.id, context: d.context });
+      } else {
+        setInput(d.prompt);
+        wantFocus.current = true;
+        setTimeout(() => taRef.current?.focus(), 0);
+      }
     };
-    window.addEventListener("beatcut:chat", h);
-    return () => window.removeEventListener("beatcut:chat", h);
+    window.addEventListener(ASK_EVENT, h);
+    return () => window.removeEventListener(ASK_EVENT, h);
   }, []);
   useEffect(() => {
     if (open && wantFocus.current) { wantFocus.current = false; taRef.current?.focus(); }
@@ -171,16 +193,23 @@ export function ChatPanel() {
     loadThreads();
   };
 
-  const send = async (text?: string) => {
+  const send = async (text?: string, opts?: SendOpts) => {
     const message = (text ?? input).trim();
-    if (!message || running) return;
+    const answer = (r: Omit<AskDoneDetail, "id">) => {
+      if (opts?.askId) window.dispatchEvent(new CustomEvent<AskDoneDetail>(ASK_DONE_EVENT, { detail: { id: opts.askId, ...r } }));
+    };
+    if (!message) return;
+    if (running) { answer({ text: "", isError: true, error: "Claude is still working on the last ask — stop it first", sessionId }); return; }
     setInput("");
     setError(null);
     setRunning(true);
-    setTurns((t) => [...t, { role: "user", parts: [{ kind: "text", text: message }] }, { role: "assistant", parts: [] }]);
+    setTurns((t) => [...t, { role: "user", parts: [{ kind: "text", text: message }], from: opts?.from }, { role: "assistant", parts: [] }]);
     const ac = new AbortController();
     abortRef.current = ac;
-    let sid = sessionId;
+    let sid = opts?.sid !== undefined ? opts.sid : sessionId;
+    let finalText = "";
+    let doneEv: Extract<ChatEvent, { t: "done" }> | null = null;
+    let failure: string | null = null;
     const patch = (fn: (parts: Part[]) => Part[], meta?: Turn["meta"]) =>
       setTurns((t) => {
         const last = t[t.length - 1];
@@ -190,7 +219,7 @@ export function ChatPanel() {
     try {
       const r = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, sessionId: sid, context: ctx }), signal: ac.signal,
+        body: JSON.stringify({ message, sessionId: sid, context: opts?.context !== undefined ? opts.context : ctx }), signal: ac.signal,
       });
       if (!r.ok || !r.body) {
         const j = (await r.json().catch(() => ({}))) as { error?: string };
@@ -215,6 +244,7 @@ export function ChatPanel() {
               setModel(ev.model);
               break;
             case "text":
+              finalText += ev.delta;
               patch((p) => {
                 const last = p[p.length - 1];
                 if (last?.kind === "text") return [...p.slice(0, -1), { kind: "text", text: last.text + ev.delta }];
@@ -233,10 +263,12 @@ export function ChatPanel() {
               patch((p) => [...p, { kind: "status", text: ev.text }]);
               break;
             case "done":
+              doneEv = ev;
               patch((p) => p, { costUsd: ev.costUsd, turns: ev.turns, durationMs: ev.durationMs, isError: ev.isError, errors: ev.errors });
-              if (ev.isError && ev.errors?.length) setError(ev.errors.join("\n"));
+              if (ev.isError && ev.errors?.length) { failure = ev.errors.join("\n"); setError(failure); }
               break;
             case "error":
+              failure = ev.message;
               setError(ev.message);
               break;
           }
@@ -244,13 +276,18 @@ export function ChatPanel() {
       }
       if (touched) router.refresh();
     } catch (e) {
-      if (!(e instanceof DOMException && e.name === "AbortError")) setError(e instanceof Error ? e.message : String(e));
+      if (e instanceof DOMException && e.name === "AbortError") failure = "stopped";
+      else { failure = e instanceof Error ? e.message : String(e); setError(failure); }
     } finally {
       setRunning(false);
       abortRef.current = null;
       loadThreads();
+      const done: Extract<ChatEvent, { t: "done" }> | null = doneEv;
+      const ok = !!done && !done.isError && !failure;
+      answer({ text: ok ? (done.result ?? finalText) : finalText, isError: !ok, error: ok ? undefined : (failure ?? "the turn ended without a result"), sessionId: sid });
     }
   };
+  useEffect(() => { sendRef.current = send; });
 
   const stop = async () => {
     if (sessionId) await fetch("/api/chat/interrupt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId }) });
@@ -334,7 +371,12 @@ export function ChatPanel() {
 function TurnView({ turn, running }: { turn: Turn; running: boolean }) {
   if (turn.role === "user") {
     const text = turn.parts.map((p) => (p.kind === "text" ? p.text : "")).join("");
-    return <div className="ml-8 bg-acc/15 border border-acc/30 rounded-xl px-3 py-2 text-sm whitespace-pre-wrap">{text}</div>;
+    return (
+      <div className="ml-8">
+        {turn.from && <div className="text-[11px] text-muted text-right mb-0.5 truncate" title="sent by a button on the page">from {turn.from}</div>}
+        <div className="bg-acc/15 border border-acc/30 rounded-xl px-3 py-2 text-sm whitespace-pre-wrap">{text}</div>
+      </div>
+    );
   }
   return (
     <div className="text-sm space-y-2">

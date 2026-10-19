@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { hasChatAuth } from "./chatAuth";
 import { CLIPS, FINAL, OUT, PROJECTS, ROOT, SOUND, VIDEO_EXT, rel } from "./paths";
 import type {
   ClipInfo,
@@ -595,7 +596,7 @@ export async function health(): Promise<{ ffmpeg: boolean; uv: boolean; apiKey: 
   return {
     ffmpeg: await which("ffmpeg"),
     uv: await which("uv"),
-    apiKey: !!process.env.ANTHROPIC_API_KEY,
+    apiKey: hasChatAuth(),   // an API key in .env.local or the Claude Code login on this Mac
     root: ROOT,
     capcutSeed: exists(CAPCUT_DRAFTS) && fs.readdirSync(CAPCUT_DRAFTS).some((d) => !d.startsWith(".")),
   };

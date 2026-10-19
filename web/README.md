@@ -6,14 +6,18 @@ running the same agent as Claude Code inside the beatcut folder).
 
 ```bash
 npm install
-cp .env.example .env.local   # ANTHROPIC_API_KEY=… (the Claude panel needs it; buttons don't)
+cp .env.example .env.local   # ANTHROPIC_API_KEY=… (optional: without it the panel uses the Claude Code login)
 npm run dev                  # http://localhost:3000
 ```
 
 - `src/lib/paths.ts` — where the beatcut folder is (`BEATCUT_ROOT`, default `..`).
 - `src/lib/beatcut.ts` — reads clips / projects / sounds / renders; no edit logic lives here.
 - `src/lib/jobs.ts` — runs `uv run beatcut.py …` one job at a time, streams the log.
-- `src/lib/agent.ts` — the chat: `query()` from the Agent SDK, NDJSON events to the panel.
+- `src/lib/agent.ts` — the chat: `query()` from the Agent SDK, NDJSON events to the panel;
+  `src/lib/chatAuth.ts` — an API key in `.env.local` or the Claude Code login on this Mac.
+- `src/components/chat/ask.ts` — `askClaude()`: how a page button opens the panel with a
+  prompt and (optionally) sends it as a new thread, resolving with the turn's final text.
+  Used by the Fix it box, Write with Claude, Let Claude pick and Ask Claude about this shot.
 - `src/app/api/*` — route handlers the pages and the panel call.
 - `src/components/VideoEditor.tsx`, `Timeline.tsx`, `SlotCard.tsx` — the video page's
   editor: tiles per slot under the player (drag = `move`/`swap`), a side card whose
