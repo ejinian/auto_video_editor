@@ -1369,6 +1369,10 @@ REACTIONS = {   # what the avatar does; one short clip per key, image-to-video f
     "think": "the person squints, rubs their chin, thinking hard, then raises an eyebrow, looking at the camera, same framing",
 }
 HF_IMAGE_TO_VIDEO = "https://api.higgsfield.ai/kling-video/v3.0/std/image-to-video"
+HF_TEXT_TO_IMAGE = "https://api.higgsfield.ai/higgsfield-ai/soul/standard"
+GENERIC_AVATAR = ("candid phone photo of a friendly guy in his early twenties in a black hoodie, headphones around his neck, "
+                  "sitting in a gym with a laptop open, looking straight at the camera, natural light, slight smile, "
+                  "head and shoulders, plain background, no text")
 
 
 def hf_headers() -> dict:
@@ -1402,32 +1406,55 @@ def image_ref(image: str) -> str:
     return f"data:{mime};base64,{base64.b64encode(p.read_bytes()).decode()}"
 
 
-def avatar_clip(name: str, reaction: str, image: str, seconds: int = 5) -> Path:
-    """One reaction clip of the character via Higgsfield image-to-video (Kling 3.0 std,
-    sound off), polled until done and downloaded to clips/_avatar/<name>/<reaction>.mp4."""
-    out = AVATARS / name / f"{reaction}.mp4"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    body = {"image_url": image_ref(image), "prompt": REACTIONS[reaction] + ", vertical, no text, no captions", "duration": seconds, "sound": "off", "cfg_scale": 0.5}
-    h = hf_json(HF_IMAGE_TO_VIDEO, body)
-    status_url = h.get("status_url")
+def hf_wait(handle: dict, what: str) -> dict:
+    """Poll a submitted Higgsfield request's status_url until it is completed."""
+    status_url = handle.get("status_url")
     if not status_url:
-        die(f"Higgsfield gave no status url: {json.dumps(h)[:300]}")
-    print(f"  {name}/{reaction}: queued ({h.get('request_id')})…", flush=True)
+        die(f"Higgsfield gave no status url for the {what}: {json.dumps(handle)[:300]}")
+    print(f"  {what}: queued ({handle.get('request_id')})…", flush=True)
+    state = "queued"
     for _ in range(240):
         time.sleep(5)
         st = hf_json(status_url)
         state = str(st.get("status", "")).lower()
         if state == "completed":
-            url = (st.get("video") or {}).get("url")
-            if not url:
-                die(f"Higgsfield finished but gave no video url: {json.dumps(st)[:300]}")
-            data, _ = http_get(url, binary=True, timeout=300)
-            out.write_bytes(data)
-            print(f"  {name}/{reaction}: {len(data) / 1e6:.1f} MB → {rel(out)}")
-            return out
-        if state in ("failed", "cancelled", "canceled", "error"):
-            die(f"Higgsfield failed the {reaction} clip: {json.dumps(st)[:400]}")
-    die(f"Higgsfield took too long on the {reaction} clip (still {state})")
+            return st
+        if state in ("failed", "cancelled", "canceled", "error", "nsfw"):
+            die(f"Higgsfield failed the {what}: {json.dumps(st)[:400]}")
+    die(f"Higgsfield took too long on the {what} (still {state})")
+
+
+def avatar_image(name: str, prompt: str) -> str:
+    """The character's picture from a prompt (Soul, 1:1), kept as clips/_avatar/<name>/
+    character.png; returns the hosted URL the video model takes as its first frame."""
+    out = AVATARS / name / "character.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    st = hf_wait(hf_json(HF_TEXT_TO_IMAGE, {"prompt": prompt, "aspect_ratio": "1:1", "resolution": "720p"}), f"{name}'s picture")
+    imgs = st.get("images") or []
+    url = (imgs[0] or {}).get("url") if imgs else None
+    if not url:
+        die(f"Higgsfield finished but gave no image url: {json.dumps(st)[:300]}")
+    data, _ = http_get(url, binary=True, timeout=120)
+    out.write_bytes(data)
+    (out.parent / "character.json").write_text(json.dumps({"prompt": prompt, "url": url}, indent=1))
+    print(f"  {name}'s picture → {rel(out)}")
+    return url
+
+
+def avatar_clip(name: str, reaction: str, image: str, seconds: int = 5) -> Path:
+    """One reaction clip of the character via Higgsfield image-to-video (Kling 3.0 std,
+    sound off), polled until done and downloaded to clips/_avatar/<name>/<reaction>.mp4."""
+    out = AVATARS / name / f"{reaction}.mp4"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    body = {"image_url": image_ref(image), "prompt": REACTIONS[reaction] + ", no text, no captions", "duration": seconds, "sound": "off", "cfg_scale": 0.5}
+    st = hf_wait(hf_json(HF_IMAGE_TO_VIDEO, body), f"{name}/{reaction}")
+    url = (st.get("video") or {}).get("url")
+    if not url:
+        die(f"Higgsfield finished but gave no video url: {json.dumps(st)[:300]}")
+    data, _ = http_get(url, binary=True, timeout=300)
+    out.write_bytes(data)
+    print(f"  {name}/{reaction}: {len(data) / 1e6:.1f} MB → {rel(out)}")
+    return out
 
 
 def avatars() -> dict[str, list[str]]:
@@ -1441,8 +1468,9 @@ def avatars() -> dict[str, list[str]]:
 
 
 def cmd_avatar(args) -> None:
-    """`avatar NAME --image URL|FILE [--reactions nod,shocked,laugh]` generates the
-    character's reaction clips once (Higgsfield, ~$0.4 each); `avatar --list` shows them."""
+    """`avatar NAME [--image URL|FILE | --prompt TEXT] [--reactions nod,shocked,laugh]`
+    generates the character's reaction clips once (Higgsfield, ~$0.4 each; without a
+    picture Higgsfield draws the character first, Soul 1:1); `avatar --list` shows them."""
     if args.list or not args.name:
         have = avatars()
         if not have:
@@ -1460,11 +1488,18 @@ def cmd_avatar(args) -> None:
     if not todo:
         print(f"{name} already has {', '.join(want)} — --redo to generate again")
         return
-    if not args.image:
-        die("--image <public url or file> is needed to make clips")
+    image = args.image
+    if not image:
+        # no picture given: Higgsfield draws the character (a generic one, or --prompt)
+        meta = AVATARS / name / "character.json"
+        if meta.exists() and not args.redo and not args.prompt:
+            image = json.loads(meta.read_text()).get("url")
+        if not image:
+            print(f"drawing {name} with Higgsfield (Soul)…")
+            image = avatar_image(name, args.prompt or GENERIC_AVATAR)
     print(f"making {len(todo)} reaction clip{'s' if len(todo) != 1 else ''} of {name} ({', '.join(todo)}) with Higgsfield…")
     for r in todo:
-        avatar_clip(name, r, args.image)
+        avatar_clip(name, r, image)
     print(f"AVATAR: {name} {' '.join(sorted(set(have) | set(todo)))}")
 
 
@@ -2501,7 +2536,8 @@ def main() -> None:
     s.set_defaults(fn=cmd_reformat)
     s = sub.add_parser("avatar", help="a character that reacts in the corner of a reaction reformat: generate its reaction clips once (Higgsfield image-to-video) — or --list")
     s.add_argument("name", nargs="?")
-    s.add_argument("--image", metavar="URL|FILE", help="the character's picture (a public https url, or a file sent as a data url)")
+    s.add_argument("--image", metavar="URL|FILE", help="the character's picture (a public https url, or a file sent as a data url); without it Higgsfield draws one")
+    s.add_argument("--prompt", metavar="TEXT", help="without --image: what the character looks like (default: a generic one — a guy in a hoodie at the gym with a laptop)")
     s.add_argument("--reactions", metavar="KINDS", help=f"which clips to make (default nod,shocked,laugh,point; have: {', '.join(REACTIONS)})")
     s.add_argument("--redo", action="store_true", help="generate again even if the clips exist")
     s.add_argument("--list", action="store_true")

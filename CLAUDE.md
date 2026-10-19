@@ -145,9 +145,12 @@ four sampled frames) so they do not sit on the source's own text. `render` on su
 project is `render_reformat` (scale/pad to 1080x1920, PNG overlays, amix); `show`,
 `board` and `remix` know the kind. On one of them, `reformat -p F_2 --lines … --render`
 sets its copy and renders. Prints `FRAMES:` and `REFORMATS: F_1 F_2 F_3`.
-**reaction** (2026-10-19, silent): a character reacts in the corner — `avatar <name> --image
-<public url | file> [--reactions nod,shocked,laugh,point,think]` generates one 5 s clip per
-reaction ONCE with **Higgsfield** image-to-video (Kling 3.0 std, sound off; `HIGGSFIELD_KEY_ID`
+**reaction** (2026-10-19, silent): a character reacts in the corner — `avatar <name> [--image
+<public url | file> | --prompt "…"] [--reactions nod,shocked,laugh,point,think]` generates one
+5 s clip per reaction ONCE (without a picture it first DRAWS the character with Higgsfield's
+Soul text-to-image, `higgsfield-ai/soul/standard`, 1:1 720p, `GENERIC_AVATAR` prompt by
+default → `clips/_avatar/<name>/character.png` + `.json` with the hosted url the video
+model is then fed) with **Higgsfield** image-to-video (Kling 3.0 std, sound off; `HIGGSFIELD_KEY_ID`
 / `HIGGSFIELD_KEY_SECRET` in `web/.env.local`, pay as you go ≈ $0.4 a clip; a local file is
 sent as a data url, a public url as is; async: `status_url` polled every 5 s, `video.url`
 downloaded) into `clips/_avatar/<name>/<reaction>.mp4`; `avatar --list` shows them. A
