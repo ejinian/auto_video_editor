@@ -25,7 +25,7 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
   const kind = pr.reformat ?? "hook";
   const [hook, setHook] = useState(pr.hook ?? "");
   const [lines, setLines] = useState((pr.lines ?? []).join("\n"));
-  const [voice, setVoice] = useState(pr.voice ?? "Samantha");
+  const [voice, setVoice] = useState(pr.voice ?? "eleven");
   const [comment, setComment] = useState(pr.comment?.text ?? "");
   const [user, setUser] = useState(pr.comment?.user ?? "");
   const [asking, setAsking] = useState<"idle" | "running" | "done" | "error">("idle");
@@ -104,7 +104,8 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
             </div>
             <div>
               <label className="label">Voice</label>
-              <input className="input !w-36" value={voice} onChange={(e) => setVoice(e.target.value)} title="a macOS voice (say -v '?')" />
+              <input className="input !w-36" value={voice} onChange={(e) => setVoice(e.target.value)} title="eleven = your ElevenLabs voice (web/.env.local); eleven:<voice id> for another; or a macOS voice name like Samantha" />
+              <div className="text-muted text-[11px] mt-1 w-36">eleven = your ElevenLabs voice; or a Mac voice name</div>
             </div>
           </div>
         )}

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import math
 import random
 import re
@@ -1358,6 +1359,46 @@ REFORMATS = {
     "reply": "the video as the answer to a comment, with the comment bubble on top",
 }
 DEFAULT_VOICE = "Samantha"   # macOS `say`; the closest built-in to the TikTok voice
+ELEVEN_MODEL = "eleven_multilingual_v2"
+
+
+def web_env(key: str) -> str | None:
+    """A setting from the environment or, failing that, web/.env.local — the one place
+    keys live (ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID), so the CLI and the app agree."""
+    if os.environ.get(key):
+        return os.environ[key]
+    f = ROOT / "web" / ".env.local"
+    if f.exists():
+        for line in f.read_text().splitlines():
+            if line.startswith(key + "="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'") or None
+    return None
+
+
+def default_voice() -> str:
+    """"eleven" (the ElevenLabs voice in web/.env.local) when a key is set, else the Mac voice."""
+    return "eleven" if web_env("ELEVENLABS_API_KEY") and web_env("ELEVENLABS_VOICE_ID") else DEFAULT_VOICE
+
+
+def eleven_tts(text: str, voice_id: str, out: Path) -> None:
+    """ElevenLabs text to speech → mp3 at `out`. The key and the default voice come from
+    web/.env.local; ELEVENLABS_MODEL overrides the model."""
+    key = web_env("ELEVENLABS_API_KEY")
+    if not key:
+        die("ELEVENLABS_API_KEY is not set in web/.env.local (or use a macOS voice: --voice Samantha)")
+    req = urllib.request.Request(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128",
+        data=json.dumps({"text": text, "model_id": web_env("ELEVENLABS_MODEL") or ELEVEN_MODEL}).encode(),
+        headers={"xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            data = r.read()
+    except urllib.error.HTTPError as e:
+        die(f"ElevenLabs refused the request ({e.code}): {e.read()[:300].decode('utf-8', 'replace')}")
+    if len(data) < 1000:
+        die("ElevenLabs returned no audio")
+    out.write_bytes(data)
 
 
 def has_audio(p: Path) -> bool:
@@ -1365,13 +1406,22 @@ def has_audio(p: Path) -> bool:
 
 
 def tts(text: str, voice: str, out: Path) -> float:
-    """Say `text` with a macOS voice into a 44.1 kHz stereo wav; returns its length."""
-    aiff = out.with_suffix(".aiff")
-    p = subprocess.run(["say", "-v", voice, "-r", "185", "-o", str(aiff), text], capture_output=True, text=True)
-    if p.returncode or not aiff.exists():
-        die(f"`say` failed for voice {voice!r}: {p.stderr.strip()[-300:]} (list voices with `say -v '?'`)")
-    run(["ffmpeg", "-y", "-v", "error", "-i", str(aiff), "-ar", "44100", "-ac", "2", str(out)])
-    aiff.unlink()
+    """Say `text` into a 44.1 kHz stereo wav; returns its length. `voice` is "eleven"
+    (the ElevenLabs voice in web/.env.local), "eleven:<voice_id>", or a macOS `say`
+    voice name (Samantha…)."""
+    if voice == "eleven" or voice.startswith("eleven:"):
+        vid = voice.split(":", 1)[1] if ":" in voice else web_env("ELEVENLABS_VOICE_ID")
+        if not vid:
+            die("ELEVENLABS_VOICE_ID is not set in web/.env.local (or --voice eleven:<voice_id>)")
+        raw = out.with_suffix(".mp3")
+        eleven_tts(text, vid, raw)
+    else:
+        raw = out.with_suffix(".aiff")
+        p = subprocess.run(["say", "-v", voice, "-r", "185", "-o", str(raw), text], capture_output=True, text=True)
+        if p.returncode or not raw.exists():
+            die(f"`say` failed for voice {voice!r}: {p.stderr.strip()[-300:]} (list voices with `say -v '?'`)")
+    run(["ffmpeg", "-y", "-v", "error", "-i", str(raw), "-ar", "44100", "-ac", "2", str(out)])
+    raw.unlink()
     return video_duration(out)
 
 
@@ -1436,7 +1486,7 @@ def reformat_summary(project: dict) -> str:
         return f'hook: {project.get("hook") or "(none yet)"}'
     if kind == "narrated":
         lines = project.get("lines") or []
-        return f'{len(lines)} line{"s" if len(lines) != 1 else ""} ({project.get("voice") or DEFAULT_VOICE}): ' + (" | ".join(lines) if lines else "(none yet)")
+        return f'{len(lines)} line{"s" if len(lines) != 1 else ""} ({project.get("voice") or default_voice()}): ' + (" | ".join(lines) if lines else "(none yet)")
     c = project.get("comment")
     return f'comment: {c.get("text") if c else "(none yet)"}' + (f' (@{c["user"]})' if c and c.get("user") else "")
 
@@ -1479,7 +1529,7 @@ def render_reformat(project: dict, args) -> None:
         lines = [x for x in (project.get("lines") or []) if x.strip()]
         if not lines:
             die("no narration yet — `reformat --lines \"first|second|third\"` first (or the Claude button in the app)")
-        voice = project.get("voice") or DEFAULT_VOICE
+        voice = project.get("voice") or default_voice()
         y_lines = quiet_y(src, dur, 0.14, [0.50, 0.58, 0.64, 0.70, 0.76])
         t = 0.4
         slot = max(0.0, (dur - 0.8)) / len(lines)
@@ -1616,7 +1666,7 @@ def cmd_reformat(args) -> None:
             "name": name, "kind": "reformat", "reformat": kind, "source": rel(src), "clips": [],
             "sound": pointer["sound"], "beats": pointer["beats"], "audio_start": 0.0, "length": round(dur, 3),
             "density": dict(DEFAULT_DENSITY), "excluded": [], "hero": None, "caption": None, "cuts": [], "slots": [],
-            "hook": None, "lines": [], "comment": None, "voice": args.voice or DEFAULT_VOICE,
+            "hook": None, "lines": [], "comment": None, "voice": args.voice or default_voice(),
         }
         apply_copy(project)
         save_project(project)
@@ -2257,7 +2307,7 @@ def main() -> None:
     s.add_argument("--only", metavar="KINDS", help="a subset, e.g. hook,reply")
     s.add_argument("--hook", metavar="TEXT", help="the hook line on screen (hook reformat)")
     s.add_argument("--lines", metavar="A|B|C", help="the narration, lines separated by | (narrated reformat)")
-    s.add_argument("--voice", metavar="VOICE", help=f"a macOS voice for the narration (default {DEFAULT_VOICE}; `say -v '?'` lists them)")
+    s.add_argument("--voice", metavar="VOICE", help=f"the narration voice: eleven (the ElevenLabs voice in web/.env.local, the default when a key is set), eleven:<voice_id>, or a macOS voice name (default {DEFAULT_VOICE} without a key; `say -v '?'` lists them)")
     s.add_argument("--comment", metavar="TEXT", help="the comment the video answers (reply reformat)")
     s.add_argument("--user", metavar="HANDLE", help="who wrote the comment, if real (shown as 'Reply to @user')")
     s.add_argument("--render", action="store_true", help="render too (each one that has its copy)")
