@@ -172,6 +172,17 @@ is bought. Clips then come from the cheapest model by default (`kling-2.5` turbo
 (`agree`, `present`, `listen`, `thumbs`, `nod`…; every prompt tells the model to keep the
 green background; default set agree,present,listen). Christian's pick of the girl
 character decides which of `girl1..3` becomes the house avatar.
+**Real comments (2026-10-19, Christian: "the comment reply thing" is the keeper; the avatar is
+off by default now — `--avatar` only):** `comments <link>` lists a post's top comments
+(TikTok keylessly through tikwm's `api/comment/list`, most liked first; others through
+yt-dlp's `--write-comments`, best effort). `reformat --video <link>` fetches them into
+`clips/F/.source/comments.json` and onto the reply project (`comments: [{user, text, likes}]`,
+top 20); `--pick N` answers the N-th (`comment` gets `user`, `likes`, `pick`, so the bubble
+says "Reply to @user's comment" for real). `reformat -p F_3 --another --pick M [--render]`
+is the chain: one more reply to the same video answering another comment, as a new project
+(same source, comments and board). The reply editor lists the comments to click; "Another
+reply with this comment"; the Claude ask picks the comment with the best hook potential
+(`--pick`) and only writes one when the list is empty.
 In the app the Remix page's default is **Reformat** (Re-cut ×4 is the other option,
 for raw footage); the job lands on `/video/F_1?ask=reformat`, which fires a Claude ask
 (`ReformatEditor`): read the frame sheet, write the hook, the narration and the comment
