@@ -1417,8 +1417,12 @@ STYLES = {   # reformats that change the FEEL of the same cut (no AI generation;
     "goofy": "the meme treatment: punch-zooms and a shake on the moments, a boom / a 'bruh' on the reveal, crunchy bass-boosted audio, big caption",
     "cinematic": "a trailer: slow motion on the key moment, letterbox bars, warm grade and grain, fades, a dramatic sound instead of the original audio",
 }
+STYLES["hype"] = ("the one that parlays the others (Christian, 2026-10-19): cinematic's slow motion, bars and grade with the ORIGINAL audio kept "
+                  "and the song ducked under it, goofy's punch-zooms and booms, pop-in text, emoji, and snapshots — a polaroid of a frame "
+                  "that pops in at an angle; the narration lines too, if it has any")
 REFORMATS.update(STYLES)
-STYLE_FX = {"goofy": ("zoom", "boom", "bruh", "nah", "whoosh"), "cinematic": ("slow", "riser")}
+STYLE_FX = {"goofy": ("zoom", "boom", "bruh", "nah", "whoosh"), "cinematic": ("slow", "riser"),
+            "hype": ("zoom", "boom", "slow", "pop", "snap", "emoji", "riser", "whoosh", "bruh", "nah")}
 SFX_DIR = SOUND / "_sfx"   # synthesized once (ffmpeg lavfi; 'bruh'/'nah' said by the narration voice)
 AVATARS = CLIPS / "_avatar"   # clips/_avatar/<name>/<reaction>.mp4 — generated once, reused by every reaction reformat
 REACTIONS = {   # what the avatar does; one short clip per key, image-to-video from the character's picture.
@@ -1792,23 +1796,260 @@ def sfx(name: str) -> Path:
 
 
 def parse_moments(spec: str | None, kind: str) -> list[dict]:
-    """"1.2:zoom,3:boom" → [{t, fx}] for a style; fx must be one of the style's effects."""
+    """"1.2:zoom,3:boom,4:pop:NO WAY" → [{t, fx, text?}] for a style; fx must be one of
+    the style's effects; pop / emoji carry their text after a third colon."""
     out = []
     for item in [x.strip() for x in (spec or "").split(",") if x.strip()]:
         if ":" not in item:
             die(f"moment '{item}' needs a time: 2.5:zoom")
-        t, fx = item.split(":", 1)
-        fx = fx.strip()
+        parts = item.split(":", 2)
+        t, fx = parts[0], parts[1].strip()
         if fx not in STYLE_FX.get(kind, ()):
             die(f"'{fx}' is not a {kind} effect — have: {', '.join(STYLE_FX.get(kind, ()))}")
-        out.append({"t": round(float(t), 2), "fx": fx})
+        m = {"t": round(float(t), 2), "fx": fx}
+        if len(parts) > 2 and parts[2].strip():
+            m["text"] = parts[2].strip()
+        elif fx in ("pop", "emoji"):
+            die(f"{fx} needs its text: {t}:{fx}:NO WAY")
+        out.append(m)
     return sorted(out, key=lambda m: m["t"])
 
 
 def default_moments(kind: str, dur: float) -> list[dict]:
     if kind == "goofy":
         return [{"t": round(dur * 0.25, 2), "fx": "zoom"}, {"t": round(dur * 0.55, 2), "fx": "boom"}, {"t": round(dur * 0.55, 2), "fx": "zoom"}]
+    if kind == "hype":
+        return [{"t": round(dur * 0.2, 2), "fx": "zoom"}, {"t": round(dur * 0.36, 2), "fx": "snap"},
+                {"t": round(dur * 0.55, 2), "fx": "slow"}, {"t": round(dur * 0.55, 2), "fx": "boom"},
+                {"t": round(dur * 0.74, 2), "fx": "pop", "text": "NO WAY"}, {"t": round(dur * 0.86, 2), "fx": "emoji", "text": "😭"}]
     return [{"t": round(dur * 0.45, 2), "fx": "slow"}]
+
+
+def pop_png(text: str, w: int, h: int, path: Path) -> tuple[int, int]:
+    """A pop-in word: big, white with a thick black outline, slightly tilted. Returns its size."""
+    from PIL import Image, ImageDraw
+    size = int(h * 0.075)
+    fnt = font(size)
+    stroke = max(3, int(size * 0.16))
+    lines = wrap_px(text.upper(), fnt, int(w * 0.8))
+    d0 = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    boxes = [d0.textbbox((0, 0), ln, font=fnt, stroke_width=stroke) for ln in lines]
+    tw = max(b[2] - b[0] for b in boxes) + 40
+    th = sum(b[3] - b[1] for b in boxes) + int(size * 0.25) * len(lines) + 40
+    img = Image.new("RGBA", (tw, th), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    y = 20
+    for ln, bb in zip(lines, boxes):
+        d.text(((tw - (bb[2] - bb[0])) / 2 - bb[0], y - bb[1]), ln, font=fnt, fill="white", stroke_width=stroke, stroke_fill="black")
+        y += (bb[3] - bb[1]) + int(size * 0.25)
+    img = img.rotate(-4, expand=True, resample=Image.BICUBIC)
+    img.save(path)
+    return img.size
+
+
+def emoji_png(text: str, path: Path, px: int) -> bool:
+    """Apple's color emoji at `px` pixels (the font only renders at 160; scaled)."""
+    from PIL import Image, ImageDraw, ImageFont
+    try:
+        fnt = ImageFont.truetype("/System/Library/Fonts/Apple Color Emoji.ttc", 160)
+        n = max(1, len(text))
+        img = Image.new("RGBA", (190 * n, 200), (0, 0, 0, 0))
+        ImageDraw.Draw(img).text((10, 10), text, font=fnt, embedded_color=True)
+        img = img.crop(img.getbbox() or (0, 0, 190, 200))
+        scale = px / max(img.height, 1)
+        img = img.resize((max(1, int(img.width * scale)), px), Image.LANCZOS)
+        img.save(path)
+        return True
+    except Exception:  # noqa: BLE001 — no color emoji support: skip the emoji
+        return False
+
+
+def polaroid_png(src: Path, t: float, w: int, h: int, path: Path) -> tuple[int, int]:
+    """A frame of the video at `t` as a polaroid: white border, a thicker bottom, tilted,
+    with a soft shadow. Returns its size."""
+    from PIL import Image, ImageFilter
+    grab = path.with_suffix(".grab.jpg")
+    run(["ffmpeg", "-y", "-v", "error", "-ss", f"{t:.3f}", "-i", str(src), "-frames:v", "1", "-vf", "scale=540:720:force_original_aspect_ratio=increase,crop=540:720", str(grab)])
+    photo = Image.open(grab).convert("RGB")
+    grab.unlink()
+    b, bb = 26, 96
+    card = Image.new("RGBA", (photo.width + 2 * b, photo.height + b + bb), (252, 252, 250, 255))
+    card.paste(photo, (b, b))
+    card = card.rotate(-7, expand=True, resample=Image.BICUBIC)
+    shadow = Image.new("RGBA", (card.width + 60, card.height + 60), (0, 0, 0, 0))
+    sh = Image.new("RGBA", card.size, (0, 0, 0, 0))
+    sh.paste((0, 0, 0, 150), (0, 0), card.split()[3])
+    shadow.paste(sh, (36, 42), sh)
+    shadow = shadow.filter(ImageFilter.GaussianBlur(14))
+    shadow.paste(card, (30, 30), card)
+    out = shadow
+    scale = (w * 0.62) / out.width
+    out = out.resize((int(out.width * scale), int(out.height * scale)), Image.LANCZOS)
+    out.save(path)
+    return out.size
+
+
+def render_hype(project: dict, args) -> None:
+    """The combined style — see STYLES["hype"]. Slow motion retimes the video AND the
+    original audio (atempo), every other moment is mapped through that retiming."""
+    src = ROOT / project["source"]
+    w, h = (540, 960) if args.draft else (W, H)
+    dur = float(project["length"])
+    name = args.name or out_name(project)
+    od = out_dir(project)
+    work = od / f".reformat_{name}"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True)
+    moments = project.get("moments") or default_moments("hype", dur)
+    slow_factor, slow_len = 2.2, 1.0
+    cuts, segs = 0.0, []
+    for t in sorted(m["t"] for m in moments if m["fx"] == "slow"):
+        if t <= cuts or t + slow_len > dur:
+            continue
+        segs.append((cuts, t, 1.0))
+        segs.append((t, t + slow_len, slow_factor))
+        cuts = t + slow_len
+    segs.append((cuts, dur, 1.0))
+    total = sum((b - a) * f for a, b, f in segs)
+
+    def remap(t: float) -> float:
+        return sum((min(b, max(a, t)) - a) * f for a, b, f in segs if a < t)
+
+    has_src_audio = has_audio(src)
+    cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)]
+    n_in = 1
+    if not has_src_audio:
+        cmd += ["-f", "lavfi", "-t", f"{dur:.3f}", "-i", "anullsrc=r=44100:cl=stereo"]
+        src_audio = "[1:a]"
+        n_in = 2
+    else:
+        src_audio = "[0:a]"
+    filters: list[str] = []
+    # --- video: retime, then the goofy zooms/shake in output time, a lighter cinematic grade and bars
+    filters.append(f"[0:v]fps={FPS},scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,split={len(segs)}" + "".join(f"[p{i}]" for i in range(len(segs))))
+    for i, (a, b, f) in enumerate(segs):
+        filters.append(f"[p{i}]trim=start={a:.3f}:end={b:.3f},setpts=(PTS-STARTPTS)*{f}[s{i}]")
+    filters.append("".join(f"[s{i}]" for i in range(len(segs))) + f"concat=n={len(segs)}:v=1:a=0[vc]")
+    zooms = [remap(m["t"]) for m in moments if m["fx"] == "zoom"]
+    booms = [remap(m["t"]) for m in moments if m["fx"] == "boom"]
+    z = "1" + "".join(f"+0.2*between(t,{t:.3f},{t + 0.5:.3f})" for t in zooms)
+    shake = "".join(f"+7*sin(t*140)*between(t,{t:.3f},{t + 0.3:.3f})" for t in booms)
+    bar = int(h * 0.06)
+    filters.append(
+        f"[vc]scale=w='iw*({z})':h='ih*({z})':eval=frame,crop={w}:{h}:x='(iw-ow)/2{shake}':y='(ih-oh)/2',"
+        f"eq=contrast=1.1:saturation=1.08,vignette=PI/5,noise=alls=6:allf=t,"
+        f"drawbox=x=0:y=0:w={w}:h={bar}:color=black:t=fill,drawbox=x=0:y={h - bar}:w={w}:h={bar}:color=black:t=fill,"
+        f"fade=t=in:d=0.4,fade=t=out:st={max(0.0, total - 0.6):.3f}:d=0.6[vg]"
+    )
+    last = "vg"
+    k = 0
+
+    def pop_in(png: Path, t_out: float, hold: float, x: str, y: str, rise: float = 0.14) -> None:
+        nonlocal last, n_in, k
+        cmd.extend(["-loop", "1", "-t", f"{hold + 0.3:.3f}", "-i", str(png)])
+        # scales up from 55 % with a tiny overshoot, then sits; the main timeline is `t`, the input's own clock starts at 0
+        filters.append(f"[{n_in}:v]format=rgba,scale=w='iw*(0.55+0.5*min(1,t/{rise:.3f})-0.05*between(t,{rise:.3f},{rise + 0.08:.3f}))':h=-1:eval=frame,setpts=PTS-STARTPTS+{t_out:.3f}/TB[o{k}]")
+        filters.append(f"[{last}][o{k}]overlay=x='{x}':y='{y}':format=auto:eof_action=pass:enable='between(t,{t_out:.3f},{t_out + hold:.3f})'[w{k}]")
+        last = f"w{k}"
+        n_in += 1
+        k += 1
+
+    if project.get("hook"):
+        cap = work / "hook.png"
+        # below the top bar and any text the source carries up there: the quiet band of the middle third
+        caption_png(project["hook"].upper(), w, h, cap, y_frac=quiet_y(src, dur, 0.12, [0.27, 0.33, 0.39, 0.45, 0.51]), size_frac=0.042)
+        cmd += ["-i", str(cap)]
+        filters.append(f"[{last}][{n_in}:v]overlay=0:0:format=auto[hk]")
+        last = "hk"
+        n_in += 1
+    for i, m in enumerate(moments):
+        t_out = remap(m["t"])
+        if m["fx"] == "pop":
+            png = work / f"pop{i}.png"
+            pw, ph = pop_png(m.get("text") or "NO WAY", w, h, png)
+            pop_in(png, t_out, 1.2, "(W-w)/2", f"H*0.44-h/2")
+        elif m["fx"] == "emoji":
+            png = work / f"emoji{i}.png"
+            if emoji_png(m.get("text") or "😭", png, int(h * 0.16)):
+                pop_in(png, t_out, 1.1, "W*0.68-w/2", "H*0.3-h/2", rise=0.1)
+        elif m["fx"] == "snap":
+            png = work / f"snap{i}.png"
+            polaroid_png(src, m["t"], w, h, png)
+            pop_in(png, t_out, 1.4, "(W-w)/2", "(H-h)/2", rise=0.18)
+    # narration lines (the third rendition's trick), if the project has any: said by the
+    # narration voice at even spacing, each shown while it is said
+    line_mixes: list[str] = []
+    lines = [x for x in (project.get("lines") or []) if x.strip()]
+    if lines:
+        voice = project.get("voice") or default_voice()
+        slot = max(0.0, total - 0.8) / len(lines)
+        for i, line in enumerate(lines):
+            wav = work / f"line{i}.wav"
+            dl = tts(line, voice, wav)
+            start = min(i * slot + 0.4, max(0.4, total - dl - 0.2))
+            cmd += ["-i", str(wav)]
+            line_mixes.append(f"[{n_in}:a]adelay={int(start * 1000)}|{int(start * 1000)}[x{n_in}]")
+            n_in += 1
+            png = work / f"line{i}.png"
+            caption_png(line, w, h, png, y_frac=0.66, size_frac=0.04)
+            cmd += ["-loop", "1", "-t", f"{dl + 0.4:.3f}", "-i", str(png)]
+            filters.append(f"[{last}][{n_in}:v]setpts=PTS-STARTPTS+{start:.3f}/TB[lp{i}];[{last}][lp{i}]overlay=0:0:format=auto:eof_action=pass:enable='between(t,{start:.3f},{start + dl + 0.15:.3f})'[ln{i}]".replace(f"[{last}][{n_in}:v]setpts", f"[{n_in}:v]setpts"))
+            last = f"ln{i}"
+            n_in += 1
+    filters.append(f"[{last}]format=yuv420p[vo]")
+
+    # --- audio: the ORIGINAL retimed with the picture, a little bass; the song ducked under it by the original (sidechain);
+    # the hits on their moments; narration lines if the project has any
+    filters.append(f"{src_audio}asplit={len(segs)}" + "".join(f"[q{i}]" for i in range(len(segs))))
+    for i, (a, b, f) in enumerate(segs):
+        tempo = "" if f == 1.0 else ",atempo=0.5,atempo=" + f"{1 / (f * 0.5):.4f}"   # 2.2× slower = 0.4545: 0.5 × 0.909
+        filters.append(f"[q{i}]atrim=start={a:.3f}:end={b:.3f},asetpts=PTS-STARTPTS{tempo}[r{i}]")
+    filters.append("".join(f"[r{i}]" for i in range(len(segs))) + f"concat=n={len(segs)}:v=0:a=1,bass=g=4,asplit=2[oa][oa_sc]")
+    mix_in = ["[oa]"]
+    snd = style_sound(project)
+    if snd:
+        cmd += ["-i", str(snd)]
+        filters.append(f"[{n_in}:a]atrim=0:{total:.3f},asetpts=PTS-STARTPTS,volume=0.55,afade=t=in:d=0.4,afade=t=out:st={max(0.0, total - 0.8):.3f}:d=0.8[song]")
+        filters.append("[song][oa_sc]sidechaincompress=threshold=0.03:ratio=8:attack=15:release=500:makeup=1[sd]")
+        mix_in.append("[sd]")
+        n_in += 1
+    else:
+        filters.append("[oa_sc]anullsink")
+    for m in moments:
+        fx = m["fx"]
+        if fx == "slow" or fx == "riser":
+            start = max(0.0, remap(m["t"]) - 2.0)
+            cmd += ["-i", str(sfx("riser"))]
+            filters.append(f"[{n_in}:a]atrim=0.5:2.5,asetpts=PTS-STARTPTS,volume=0.6,adelay={int(start * 1000)}|{int(start * 1000)}[x{n_in}]")
+            mix_in.append(f"[x{n_in}]")
+            n_in += 1
+        elif fx in ("boom", "bruh", "nah", "whoosh", "snap", "pop"):
+            which = "whoosh" if fx in ("snap", "pop") else fx
+            cmd += ["-i", str(sfx(which))]
+            vol = 1.5 if which == "boom" else 0.9
+            t0 = remap(m["t"])
+            filters.append(f"[{n_in}:a]volume={vol},adelay={int(t0 * 1000)}|{int(t0 * 1000)}[x{n_in}]")
+            mix_in.append(f"[x{n_in}]")
+            n_in += 1
+    for lm in line_mixes:
+        filters.append(lm)
+        mix_in.append(lm.split("[")[-1].rstrip("]").join(["[", "]"]))
+    filters.append("".join(mix_in) + f"amix=inputs={len(mix_in)}:duration=first:normalize=0,alimiter=limit=0.95[ao]")
+
+    cmd += ["-filter_complex", ";".join(filters), "-map", "[vo]", "-map", "[ao]", "-r", str(FPS), "-t", f"{total:.3f}"]
+    out_path = od / f"{name}.mp4"
+    tail = ["-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-movflags", "+faststart", str(out_path)]
+    vt = ["-c:v", "h264_videotoolbox", "-b:v", "4M" if args.draft else "12M", "-profile:v", "high", "-allow_sw", "1"]
+    x264 = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23" if args.draft else "19"]
+    if args.verbose:
+        print(" ".join(cmd + vt + tail))
+    p = subprocess.run(cmd + vt + tail, text=True, capture_output=True)
+    if p.returncode:
+        p = subprocess.run(cmd + x264 + tail, text=True, capture_output=True)
+        if p.returncode:
+            die(f"ffmpeg failed:\n{p.stderr[-3000:]}")
+    shutil.rmtree(work, ignore_errors=True)
+    keep_render(out_path, name, args.draft, f"hype style · {total:.1f}s · {w}x{h}")
 
 
 def style_sound(project: dict) -> Path | None:
@@ -1964,7 +2205,7 @@ def reformat_summary(project: dict) -> str:
         return f'{len(lines)} line{"s" if len(lines) != 1 else ""} ({project.get("voice") or default_voice()}): ' + (" | ".join(lines) if lines else "(none yet)")
     if kind in STYLES:
         ms = project.get("moments") or []
-        return (f'moments: ' + (", ".join(f"{m['t']}:{m['fx']}" for m in ms) if ms else "(default)") +
+        return (f'moments: ' + (", ".join(f"{m['t']}:{m['fx']}" + (f":{m['text']}" if m.get("text") else "") for m in ms) if ms else "(default)") +
                 (f' · sound {Path(project["style_sound"]).stem}' if project.get("style_sound") else "") +
                 (f' · hook: {project["hook"]}' if project.get("hook") else ""))
     if kind == "reaction":
@@ -1980,6 +2221,9 @@ def render_reformat(project: dict, args) -> None:
     if not src.exists():
         die(f"the source video is gone: {project['source']}")
     kind = project["reformat"]
+    if kind == "hype":
+        render_hype(project, args)
+        return
     if kind in STYLES:
         render_style(project, args)
         return
