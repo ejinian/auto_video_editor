@@ -38,7 +38,7 @@ async function fromLink(req: Request) {
 function start(mode: string | undefined, video: string, folder: string, cookies: string | undefined, label: string, styles: string[] = []) {
   const recut = mode === "recut";
   const argv = recut ? ["remix", "--video", video, "--name", folder, "--render"] : ["reformat", "--video", video, "--name", folder];
-  const extra = styles.filter((s) => /^(goofy|cinematic)$/.test(s));
+  const extra = styles.filter((s) => /^(goofy|cinematic|hype)$/.test(s));
   if (!recut && extra.length) argv.push("--only", ["hook", "narrated", "reply", ...extra].join(","));
   if (cookies && /^(chrome|safari|firefox)$/.test(cookies)) argv.push("--cookies", cookies);
   const source = nextProjectName(folder);

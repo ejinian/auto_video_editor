@@ -8,8 +8,8 @@ import { useJob } from "@/components/useJob";
 import { mb, mediaUrl } from "@/lib/format";
 import type { ProjectDetail } from "@/lib/types";
 
-const KIND_LABEL: Record<string, string> = { hook: "Hook line", narrated: "Narrated", reply: "Comment reply", reaction: "Reacting avatar", goofy: "Goofy", cinematic: "Cinematic" };
-const STYLE_FX: Record<string, string[]> = { goofy: ["zoom", "boom", "bruh", "nah", "whoosh"], cinematic: ["slow", "riser"] };
+const KIND_LABEL: Record<string, string> = { hook: "Hook line", narrated: "Narrated", reply: "Comment reply", reaction: "Reacting avatar", goofy: "Goofy", cinematic: "Cinematic", hype: "Hype" };
+const STYLE_FX: Record<string, string[]> = { goofy: ["zoom", "boom", "bruh", "nah", "whoosh"], cinematic: ["slow", "riser"], hype: ["zoom", "boom", "slow", "pop:TEXT", "snap", "emoji:😭", "riser", "whoosh", "bruh", "nah"] };
 const KIND_HINT: Record<string, string> = {
   hook: "the same video with a new line on screen — the cheapest second run a reel can get",
   narrated: "two or three lines said over the footage in the TikTok voice, each shown as it is said; the original audio is ducked under it",
@@ -17,6 +17,7 @@ const KIND_HINT: Record<string, string> = {
   reaction: "your character reacts in the corner, silent: short clips of it (nod, shocked, laugh, point, think) switched at the moments that earn a reaction; the original audio stays",
   goofy: "the meme treatment: punch-zooms and a shake at the moments, a boom or a 'bruh' on the reveal, crunchy bass-boosted audio, a big caption; a meme sound from the pool can play under it",
   cinematic: "a trailer: slow motion on the key moment (a riser leads into it), letterbox bars, warm grade and grain, fades; a dramatic sound from the pool replaces the original audio",
+  hype: "the one that parlays the others: cinematic's slow motion, bars and grade with the ORIGINAL audio kept and the song ducked under it, goofy's punch-zooms and booms, pop-in text (4:pop:NO WAY), emoji (8:emoji:😭), snapshots — a polaroid of that frame popping in (3.5:snap) — and the narration lines if it has any",
 };
 
 /** The copy of a reformat: the one thing that makes it a different post. Save & render
@@ -39,7 +40,7 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
   const [moments, setMoments] = useState((pr.moments ?? []).map((m) => `${m.t}:${m.fx}`).join(", "));
   const [styleSound, setStyleSound] = useState(pr.style_sound ?? "");
   const [pool, setPool] = useState<Array<{ path: string; title: string }>>([]);
-  const isStyle = kind === "goofy" || kind === "cinematic";
+  const isStyle = kind === "goofy" || kind === "cinematic" || kind === "hype";
   useEffect(() => {
     if (!isStyle) return;
     fetch("/api/sounds").then((r) => r.json()).then((j: Array<{ path: string; title: string }>) => setPool(j.map((x) => ({ path: x.path, title: x.title })))).catch(() => undefined);
@@ -60,6 +61,7 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
     `if there is a reaction one, pick 3-5 moments and what the avatar does at each from its clips (nod, shocked, laugh, point, think — \`avatar --list\` shows which exist): \`reformat -p <name> --reactions "0:nod,2.4:shocked,6:laugh"\`; ` +
     `for a goofy one pick the moments from the frames — a zoom on the funny beat, a boom (and a zoom) on the reveal, a 'bruh' or 'nah' where a reaction fits — \`reformat -p <name> --moments "1.2:zoom,3.0:boom,3.0:zoom,6:bruh" --hook "…"\` (a short all-caps-worthy line), optionally \`--sound sound/<meme>.mp3\` from the pool; ` +
     `for a cinematic one pick the key moment to slow down and a dramatic sound from the pool (sound/*.mp3; the .source.json says what each is): \`reformat -p <name> --moments "4.2:slow" --sound sound/<x>.mp3 --hook "…"\` (a quiet, serious line); ` +
+    `for a hype one combine them: a zoom on the funny beat, a snap (a polaroid of that frame pops in) on the best-looking frame, the slow moment with a boom on the reveal, one or two pop-in words (\`7.3:pop:NO WAY\`) and an emoji (\`8.4:emoji:😭\`) where a reaction fits, a song from the pool ducked under the original audio, 2 narration lines with --lines if a voice-over adds something: \`reformat -p <name> --moments "2:zoom,3.5:snap,5.4:slow,5.4:boom,7.3:pop:NO WAY,8.4:emoji:😭" --sound sound/<x>.mp3 --hook "…"\`; ` +
     `Run /ig-human on the lines first. Add --render to each reformat command so it renders, then write each one's post caption with /ig-caption into its caption file. End with \`REFORMATS: ${siblings.map((p) => p.name).join(" ")}\`.`;
 
   const writeWithClaude = async () => {
@@ -164,7 +166,7 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
           <div className="space-y-3">
             <div>
               <label className="label">Moments <span className="text-muted">(seconds:effect, comma separated — {STYLE_FX[kind].join(", ")}; empty = a guess)</span></label>
-              <input className="input" value={moments} onChange={(e) => setMoments(e.target.value)} placeholder={kind === "goofy" ? "1.2:zoom, 3:boom, 3:zoom, 6:bruh" : "4.2:slow"} />
+              <input className="input" value={moments} onChange={(e) => setMoments(e.target.value)} placeholder={kind === "goofy" ? "1.2:zoom, 3:boom, 3:zoom, 6:bruh" : kind === "hype" ? "2:zoom, 3.5:snap, 5.4:slow, 5.4:boom, 7.3:pop:NO WAY, 8.4:emoji:😭" : "4.2:slow"} />
             </div>
             <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
               <div>
@@ -172,7 +174,7 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
                 <input className="input" value={hook} onChange={(e) => setHook(e.target.value)} placeholder={kind === "goofy" ? "the gym has wifi so it's my office now" : "we never left"} />
               </div>
               <div>
-                <label className="label">Sound from the pool <span className="text-muted">({kind === "goofy" ? "under the original audio" : "instead of it"})</span></label>
+                <label className="label">Sound from the pool <span className="text-muted">({kind === "cinematic" ? "instead of the original audio" : kind === "hype" ? "ducked under the original audio" : "under the original audio"})</span></label>
                 <select className="select" value={styleSound} onChange={(e) => setStyleSound(e.target.value)}>
                   <option value="">{kind === "goofy" ? "none" : "first in the pool"}</option>
                   {pool.map((p) => <option key={p.path} value={p.path}>{p.title}</option>)}

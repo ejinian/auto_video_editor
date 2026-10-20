@@ -29,7 +29,7 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
   // recut: four re-cuts of its shots — right for raw footage, worse for a finished reel.
   const [mode, setMode] = useState<"reformat" | "recut">("reformat");
   // extra styles on top of the three framings: the same cut with a different feel
-  const [styles, setStyles] = useState<string[]>(["goofy", "cinematic"]);
+  const [styles, setStyles] = useState<string[]>(["hype"]);
   const toggleStyle = (s: string) => setStyles((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
 
   // a posted video by link: the CLI downloads it (tikwm for TikTok, yt-dlp otherwise) and
@@ -93,6 +93,7 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
               <span className="text-muted">plus a style:</span>
               <label className={`tag !cursor-pointer ${styles.includes("goofy") ? "ok" : ""}`}><input type="checkbox" className="mr-1" checked={styles.includes("goofy")} onChange={() => toggleStyle("goofy")} />Goofy <span className="text-muted ml-1">punch-zooms, a boom on the reveal, crunchy audio</span></label>
               <label className={`tag !cursor-pointer ${styles.includes("cinematic") ? "ok" : ""}`}><input type="checkbox" className="mr-1" checked={styles.includes("cinematic")} onChange={() => toggleStyle("cinematic")} />Cinematic <span className="text-muted ml-1">slow-mo, letterbox, grade, a dramatic sound</span></label>
+              <label className={`tag !cursor-pointer ${styles.includes("hype") ? "ok" : ""}`}><input type="checkbox" className="mr-1" checked={styles.includes("hype")} onChange={() => toggleStyle("hype")} />Hype <span className="text-muted ml-1">all of it: slow-mo + zooms + pop text, emoji, snapshots; original audio kept, song ducked</span></label>
             </div>
           )}
         </div>

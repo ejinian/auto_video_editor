@@ -21,7 +21,7 @@ export interface Project {
   remix?: string | null;
   /** A reformat (set by `reformat`): the posted video kept as is, plus one framing. */
   kind?: "reformat";
-  reformat?: "hook" | "narrated" | "reply" | "reaction" | "goofy" | "cinematic";
+  reformat?: "hook" | "narrated" | "reply" | "reaction" | "goofy" | "cinematic" | "hype";
   /** A style's moments (goofy: zoom/boom/bruh/nah/whoosh; cinematic: slow/riser) and its sound from the pool. */
   moments?: Array<{ t: number; fx: string }>;
   style_sound?: string | null;

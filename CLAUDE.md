@@ -198,6 +198,20 @@ brown noise, whoosh, riser = 2.5 s sweep, scratch; bruh/nah = the narration voic
 it). They are made only with `--only …,goofy,cinematic`; the Remix page's style
 checkboxes (both on by default) add them to the three framings; the Claude ask picks the
 moments and the sound from the frames.
+**hype (2026-10-19, Christian's feedback on the first styles: "the fifth is by far the best…
+but the noise took out the audio… make the song in the background, add popping text, other
+effects, pictures, be creative"):** `render_hype` parlays them — slow motion (2.2×, 1 s)
+retimes the video AND the original audio (`atempo=0.5,atempo=0.909`), every other moment
+is mapped through that retiming (`remap`); the ORIGINAL audio stays (bass +4) and the pool
+song is DUCKED under it with `sidechaincompress` keyed by the original (`--sound`, else the
+first pool sound ≠ source); goofy's zooms (+20 %, 0.5 s) and booms with a shake; lighter
+bars (6 %) and grade; a riser into each slow moment; pop-in text (`t:pop:NO WAY`,
+`pop_png`: big tilted caps, scale-in 0.14 s with a tiny overshoot), emoji (`t:emoji:😭`,
+`emoji_png`: Apple Color Emoji renders only at 160 px, scaled), snapshots (`t:snap`,
+`polaroid_png`: the source frame at t as a tilted polaroid with a shadow, pops in centred,
+a whoosh); narration `lines` if any (shown at 66 %); the hook caption in the quiet band of
+the middle third (not the top: the source's own text lives there). Moments carry an
+optional third field for pop/emoji text. Hype is the Remix page's default style.
 In the app the Remix page's default is **Reformat** (Re-cut ×4 is the other option,
 for raw footage); the job lands on `/video/F_1?ask=reformat`, which fires a Claude ask
 (`ReformatEditor`): read the frame sheet, write the hook, the narration and the comment
