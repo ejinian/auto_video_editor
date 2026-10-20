@@ -1153,6 +1153,59 @@ def fetch_video(url: str, into: Path, cookies: str | None = None) -> Path:
     return out
 
 
+def fetch_comments(url: str, count: int = 30) -> list[dict]:
+    """The top comments of a posted video: TikTok through tikwm's comment list (keyless,
+    the same API the download uses), others through yt-dlp's comments when it has them.
+    Each: {user, text, likes}, most liked first."""
+    out: list[dict] = []
+    if "tiktok.com" in url:
+        _, final = http_get(url)
+        canonical = final.split("?")[0]
+        for candidate in dict.fromkeys([canonical, final, url]):
+            try:
+                body, _ = http_get(f"https://www.tikwm.com/api/comment/list?url={urllib.parse.quote(candidate, safe='')}&count={count}")
+                j = json.loads(body)
+            except Exception:  # noqa: BLE001
+                continue
+            if j.get("code") == 0 and j.get("data"):
+                for c in (j["data"].get("comments") or []):
+                    text = (c.get("text") or "").strip()
+                    if text:
+                        out.append({"user": (c.get("user") or {}).get("unique_id") or "", "text": text, "likes": int(c.get("digg_count") or 0)})
+                break
+    else:
+        yd = ytdlp_bin()
+        if yd:
+            p = run([yd, "--no-warnings", "--skip-download", "--write-comments", "--no-write-info-json", "-j", url], check=False)
+            try:
+                info = json.loads(p.stdout.strip().splitlines()[-1]) if p.stdout.strip() else {}
+            except ValueError:
+                info = {}
+            for c in (info.get("comments") or [])[:count]:
+                text = (c.get("text") or "").strip()
+                if text:
+                    out.append({"user": c.get("author") or "", "text": text, "likes": int(c.get("like_count") or 0)})
+    out.sort(key=lambda c: -c["likes"])
+    return out[:count]
+
+
+def cmd_comments(args) -> None:
+    cs = fetch_comments(args.link, args.count)
+    if not cs:
+        die("no comments found (TikTok posts work keylessly; Instagram needs yt-dlp with a login and often gives none)")
+    for i, c in enumerate(cs, 1):
+        print(f"{i:>3}. {c['likes']:>6} ♥  @{c['user']}: {c['text'][:140]}")
+    print(f"COMMENTS: {len(cs)}")
+
+
+def pick_comment(project: dict, n: int) -> None:
+    cs = project.get("comments") or []
+    if not 1 <= n <= len(cs):
+        die(f"--pick {n}: this video has {len(cs)} fetched comments (comments <link> lists them)")
+    c = cs[n - 1]
+    project["comment"] = {"text": c["text"], "user": c["user"] or None, "likes": c.get("likes", 0), "pick": n}
+
+
 def cmd_shots(args) -> None:
     video = Path(args.video).expanduser()
     video = video if video.is_absolute() else ROOT / video
@@ -1714,7 +1767,8 @@ def reformat_summary(project: dict) -> str:
         rs = project.get("reactions") or []
         return f'avatar {project.get("avatar") or "(none)"}: ' + (", ".join(f"{r['t']}:{r['kind']}" for r in rs) if rs else "(spread evenly)")
     c = project.get("comment")
-    return f'comment: {c.get("text") if c else "(none yet)"}' + (f' (@{c["user"]})' if c and c.get("user") else "")
+    n = len(project.get("comments") or [])
+    return f'comment: {c.get("text") if c else "(none yet)"}' + (f' (@{c["user"]})' if c and c.get("user") else "") + (f' · {n} fetched' if n else "")
 
 
 def render_reformat(project: dict, args) -> None:
@@ -1896,6 +1950,14 @@ def import_reformat_source(video: str, name: str | None, cookies: str | None) ->
     if re.match(r"https?://", video):
         folder = name or next_folder("reel")
         src = fetch_video(video, CLIPS / folder / ".source", cookies)
+        (src.parent / "source.json").write_text(json.dumps({"link": video}, indent=1))
+        try:
+            cs = fetch_comments(video)
+        except SystemExit:
+            cs = []
+        (src.parent / "comments.json").write_text(json.dumps(cs, indent=1))
+        if cs:
+            print(f"{len(cs)} comments fetched (most liked: @{cs[0]['user']}: {cs[0]['text'][:80]})")
     else:
         p = Path(video).expanduser()
         p = p if p.is_absolute() else ROOT / p
@@ -1918,7 +1980,7 @@ def cmd_reformat(args) -> None:
     global CUR
     lines = [x.strip() for x in (args.lines or "").split("|") if x.strip()] if args.lines is not None else None
     comment = ({"text": args.comment.strip(), "user": (args.user or "").lstrip("@").strip() or None} if args.comment else None)
-    avatar_name = args.avatar or next(iter(avatars()), None)
+    avatar_name = args.avatar   # the reacting avatar only when asked for (Christian dropped it, 2026-10-19)
 
     def apply_copy(project: dict) -> None:
         if args.hook is not None and project["reformat"] == "hook":
@@ -1928,6 +1990,8 @@ def cmd_reformat(args) -> None:
             project["lines"] = lines
         if comment is not None and project["reformat"] == "reply":
             project["comment"] = comment
+        if args.pick and project["reformat"] == "reply":
+            pick_comment(project, int(args.pick))
         if project["reformat"] == "reaction":
             if args.pos:
                 project["avatar_pos"] = args.pos
@@ -1942,6 +2006,20 @@ def cmd_reformat(args) -> None:
         project = load_project()
         if project.get("kind") != "reformat":
             die(f"{CUR} is a cut video, not a reformat — `reformat --video <file|link>` makes reformats of a posted video")
+        if args.another:
+            # the chain: one more reply to the same video, answering another comment
+            if project["reformat"] != "reply":
+                die("--another makes another REPLY; run it on a reply reformat")
+            m = re.fullmatch(r"(.+)_\d+", CUR)
+            new_name = next_name(m.group(1) if m else CUR)
+            twin = {**project, "name": new_name, "comment": None, "caption": None}
+            shutil.copy2(PROJECTS / f"{CUR}.sound.json", PROJECTS / f"{new_name}.sound.json")
+            CUR = new_name
+            save_project(twin)
+            board = out_dir(project) / f"_{project['name']}_board.jpg"
+            if board.exists():
+                shutil.copy2(board, out_dir(twin) / f"_{new_name}_board.jpg")
+            project = twin
         apply_copy(project)
         save_project(project)
         print(f"{CUR}: {project['reformat']} reformat of {Path(project['source']).name} — {reformat_summary(project)}")
@@ -1956,6 +2034,8 @@ def cmd_reformat(args) -> None:
             die(f"unknown reformat '{k}' — have: {', '.join(REFORMATS)}")
     folder, src = import_reformat_source(args.video, args.name, args.cookies)
     dur = video_duration(src)
+    cfile = src.parent / "comments.json"
+    comments = json.loads(cfile.read_text()) if cfile.exists() else []
     first = next_name(folder)
     CUR = first
     cmd_sound(argparse.Namespace(source=str(src), cookies=None))
@@ -1976,6 +2056,7 @@ def cmd_reformat(args) -> None:
             "density": dict(DEFAULT_DENSITY), "excluded": [], "hero": None, "caption": None, "cuts": [], "slots": [],
             "hook": None, "lines": [], "comment": None, "voice": args.voice or default_voice(),
             "avatar": avatar_name if kind == "reaction" else None, "reactions": [],
+            "comments": comments[:20] if kind == "reply" else [],
         }
         apply_copy(project)
         save_project(project)
@@ -2619,6 +2700,8 @@ def main() -> None:
     s.add_argument("--voice", metavar="VOICE", help=f"the narration voice: eleven (the ElevenLabs voice in web/.env.local, the default when a key is set), eleven:<voice_id>, or a macOS voice name (default {DEFAULT_VOICE} without a key; `say -v '?'` lists them)")
     s.add_argument("--comment", metavar="TEXT", help="the comment the video answers (reply reformat)")
     s.add_argument("--user", metavar="HANDLE", help="who wrote the comment, if real (shown as 'Reply to @user')")
+    s.add_argument("--pick", type=int, metavar="N", help="answer the N-th fetched comment of the post (most liked first; `comments <link>` lists them)")
+    s.add_argument("--another", action="store_true", help="on a reply: one more reply to the same video, answering another comment (--pick / --comment)")
     s.add_argument("--avatar", metavar="NAME", help="the character for the reaction reformat (default: the first under clips/_avatar/)")
     s.add_argument("--reactions", metavar="T:KIND,…", help="when the avatar does what, e.g. 0:nod,2.5:shocked,6:laugh (reaction reformat; default: spread evenly)")
     s.add_argument("--pos", choices=["corner", "center"], help="where the green-screen avatar stands: corner (bottom-left, default) or center (big, bottom-centre)")
@@ -2634,6 +2717,10 @@ def main() -> None:
     s.add_argument("--redo", action="store_true", help="generate again even if the clips exist")
     s.add_argument("--list", action="store_true")
     s.set_defaults(fn=cmd_avatar)
+    s = sub.add_parser("comments", help="the top comments of a posted video (TikTok keylessly), most liked first — what a reply reformat answers")
+    s.add_argument("link")
+    s.add_argument("--count", type=int, default=30)
+    s.set_defaults(fn=cmd_comments)
     s = sub.add_parser("shots", help="cut a finished video into its shots (scene detection) as clips in clips/<name>/")
     s.add_argument("video")
     s.add_argument("--into", metavar="FOLDER", help="clips folder name (default: the file's name)")

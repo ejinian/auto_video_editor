@@ -28,7 +28,9 @@ export interface Project {
   hook?: string | null;
   lines?: string[];
   voice?: string;
-  comment?: { text: string; user?: string | null } | null;
+  comment?: { text: string; user?: string | null; likes?: number; pick?: number } | null;
+  /** The post's top comments (most liked first), fetched with the video; a reply answers one. */
+  comments?: Array<{ user: string; text: string; likes: number }>;
   cuts: number[];
   _drops?: Array<{ time: number } | number>;
   slots: Array<{ clip: number; in: number; reused?: boolean }>;

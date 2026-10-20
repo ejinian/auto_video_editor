@@ -12,7 +12,7 @@ const KIND_LABEL: Record<string, string> = { hook: "Hook line", narrated: "Narra
 const KIND_HINT: Record<string, string> = {
   hook: "the same video with a new line on screen — the cheapest second run a reel can get",
   narrated: "two or three lines said over the footage in the TikTok voice, each shown as it is said; the original audio is ducked under it",
-  reply: "the video as the answer to a comment, with the comment bubble on top — paste a real comment from your post",
+  reply: "the video as the answer to a comment, with the comment bubble on top — pick one of the post's real comments below (the bubble then says who asked), or type one",
   reaction: "your character reacts in the corner, silent: short clips of it (nod, shocked, laugh, point, think) switched at the moments that earn a reaction; the original audio stays",
 };
 
@@ -29,6 +29,8 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
   const [voice, setVoice] = useState(pr.voice ?? "eleven");
   const [comment, setComment] = useState(pr.comment?.text ?? "");
   const [user, setUser] = useState(pr.comment?.user ?? "");
+  const [pick, setPick] = useState<number | null>(pr.comment?.pick ?? null);
+  const comments = pr.comments ?? [];
   const [avatar, setAvatar] = useState(pr.avatar ?? "");
   const [reactions, setReactions] = useState((pr.reactions ?? []).map((r) => `${r.t}:${r.kind}`).join(", "));
   const [asking, setAsking] = useState<"idle" | "running" | "done" | "error">("idle");
@@ -43,7 +45,7 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
     `${siblings.map((p) => `${p.name} (${p.reformat})`).join(", ")} are reformats of the posted video ${src} (${d.realLength.toFixed(0)} s): the same cut, three framings. ` +
     `Read its frame sheet out/${folder}/_frames_${stem}.jpg (and listen to nothing — judge from the frames and the sound's title). Then write, in the Young Vibas voice: ` +
     `a hook line for the hook reformat (\`reformat -p <name> --hook "…"\`); 2-3 narration lines for the narrated one in the TikTok voice-over style, the first a reaction to what is on screen (\`reformat -p <name> --lines "first|second|third"\`); ` +
-    `and for the reply one the comment it answers — the user's own comment if one is already set on it, otherwise the question a viewer would ask, with no username (\`reformat -p <name> --comment "…"\`); ` +
+    `and for the reply one the comment it answers — if its project json has a \`comments\` list (the post's real comments, most liked first), pick the one with the best hook potential, a question or a doubt the video answers, with \`reformat -p <name> --pick N\` (N is 1-based in that list); only if the list is empty write the question a viewer would ask, with no username (\`--comment "…"\`); ` +
     `if there is a reaction one, pick 3-5 moments and what the avatar does at each from its clips (nod, shocked, laugh, point, think — \`avatar --list\` shows which exist): \`reformat -p <name> --reactions "0:nod,2.4:shocked,6:laugh"\`. ` +
     `Run /ig-human on the lines first. Add --render to each reformat command so it renders, then write each one's post caption with /ig-caption into its caption file. End with \`REFORMATS: ${siblings.map((p) => p.name).join(" ")}\`.`;
 
@@ -69,7 +71,10 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
     const args: Record<string, string> = { render: "1", voice };
     if (kind === "hook") args.hook = hook.trim();
     if (kind === "narrated") args.lines = lines.split("\n").map((l) => l.trim()).filter(Boolean).join("|");
-    if (kind === "reply") { args.comment = comment.trim(); args.user = user.replace(/^@/, "").trim(); }
+    if (kind === "reply") {
+      if (pick != null && comments[pick - 1] && comments[pick - 1].text === comment.trim()) args.pick = String(pick);
+      else { args.comment = comment.trim(); args.user = user.replace(/^@/, "").trim(); }
+    }
     if (kind === "reaction") { args.reactions = reactions.split(/[,\n]/).map((x) => x.trim()).filter(Boolean).join(","); if (avatar.trim()) args.avatar = avatar.trim(); }
     run(`/api/projects/${encodeURIComponent(d.name)}/run`, { cmd: "reformat", args });
   };
@@ -114,6 +119,21 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
             </div>
           </div>
         )}
+        {kind === "reply" && comments.length > 0 && (
+          <div>
+            <label className="label">The post&apos;s comments <span className="text-muted">— click the one to answer (most liked first)</span></label>
+            <div className="max-h-56 overflow-auto border border-line rounded-lg divide-y divide-line">
+              {comments.map((c, i) => (
+                <button key={i} type="button" className={`w-full text-left px-3 py-1.5 text-sm hover:bg-card-2 flex gap-2 ${pick === i + 1 ? "bg-acc/15" : ""}`}
+                  onClick={() => { setPick(i + 1); setComment(c.text); setUser(c.user); }}>
+                  <span className="text-muted w-14 shrink-0 text-right">{c.likes} ♥</span>
+                  <span className="text-muted shrink-0">@{c.user}</span>
+                  <span className="min-w-0 truncate">{c.text}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {kind === "reply" && (
           <div className="grid gap-3" style={{ gridTemplateColumns: "1fr auto" }}>
             <div>
@@ -140,6 +160,12 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
         )}
         <div className="flex items-center gap-2 flex-wrap">
           <button className="btn" disabled={busy} onClick={save}>Save &amp; render</button>
+          {kind === "reply" && (
+            <button className="btn sec" disabled={busy || !comment.trim()} title="one more reply to the same video, answering the comment chosen above, as a new post"
+              onClick={() => { const args: Record<string, string> = { another: "1", render: "1" }; if (pick != null && comments[pick - 1]?.text === comment.trim()) args.pick = String(pick); else { args.comment = comment.trim(); args.user = user.replace(/^@/, "").trim(); } run(`/api/projects/${encodeURIComponent(d.name)}/run`, { cmd: "reformat", args }); }}>
+              Another reply with this comment
+            </button>
+          )}
           <button className="btn sec" disabled={asking === "running"} onClick={writeWithClaude} title="a new chat: Claude reads the frames, writes the hook, the narration and the comment for all three reformats, renders them and writes their captions">
             {asking === "running" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} {asking === "running" ? "Claude is writing…" : "Write them all with Claude"}
           </button>
