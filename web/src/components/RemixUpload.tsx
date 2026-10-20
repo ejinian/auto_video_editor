@@ -28,6 +28,9 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
   // reformat (default): the same cut with three framings — right for a finished reel.
   // recut: four re-cuts of its shots — right for raw footage, worse for a finished reel.
   const [mode, setMode] = useState<"reformat" | "recut">("reformat");
+  // extra styles on top of the three framings: the same cut with a different feel
+  const [styles, setStyles] = useState<string[]>(["goofy", "cinematic"]);
+  const toggleStyle = (s: string) => setStyles((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
 
   // a posted video by link: the CLI downloads it (tikwm for TikTok, yt-dlp otherwise) and
   // goes on like an uploaded file; the job page shows the download as it happens
@@ -37,7 +40,7 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
     setError(null);
     setLinkBusy(true);
     try {
-      const r = await fetch("/api/remix", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ link: l, name: name.trim(), cookies: cookies ? "chrome" : undefined, mode }) });
+      const r = await fetch("/api/remix", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ link: l, name: name.trim(), cookies: cookies ? "chrome" : undefined, mode, styles: mode === "reformat" ? styles : [] }) });
       const j = (await r.json().catch(() => ({}))) as { job?: string; error?: string };
       if (!r.ok || !j.job) { setError(j.error ?? `request failed (${r.status})`); return; }
       router.push(`/jobs/${j.job}`);
@@ -54,6 +57,7 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
     const fd = new FormData();
     fd.append("name", name.trim());
     fd.append("mode", mode);
+    if (mode === "reformat") fd.append("styles", styles.join(","));
     fd.append("file", file, file.name);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/remix");
@@ -84,6 +88,13 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
             { value: "reformat", label: "Reformat", sub: "the same cut, three framings: a hook line, a narration in your voice, and a reply to one of the post's real comments — Claude writes the copy" },
             { value: "recut", label: "Re-cut ×4", sub: "split into shots and cut again: hook cut, another sound, reorder, long version — for raw footage, not a finished reel" },
           ]} />
+          {mode === "reformat" && (
+            <div className="flex flex-wrap items-center gap-2 mt-2 text-sm">
+              <span className="text-muted">plus a style:</span>
+              <label className={`tag !cursor-pointer ${styles.includes("goofy") ? "ok" : ""}`}><input type="checkbox" className="mr-1" checked={styles.includes("goofy")} onChange={() => toggleStyle("goofy")} />Goofy <span className="text-muted ml-1">punch-zooms, a boom on the reveal, crunchy audio</span></label>
+              <label className={`tag !cursor-pointer ${styles.includes("cinematic") ? "ok" : ""}`}><input type="checkbox" className="mr-1" checked={styles.includes("cinematic")} onChange={() => toggleStyle("cinematic")} />Cinematic <span className="text-muted ml-1">slow-mo, letterbox, grade, a dramatic sound</span></label>
+            </div>
+          )}
         </div>
         <div className="flex gap-2 items-center mb-3">
           <Link2 size={16} className="text-muted shrink-0" />

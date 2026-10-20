@@ -1413,6 +1413,13 @@ REFORMATS = {
     "reply": "the video as the answer to a comment, with the comment bubble on top",
     "reaction": "an avatar reacting in the corner, silent (short image-to-video clips of the character, switched at the moments that earn a reaction; the original audio untouched)",
 }
+STYLES = {   # reformats that change the FEEL of the same cut (no AI generation; ffmpeg + the sound pool)
+    "goofy": "the meme treatment: punch-zooms and a shake on the moments, a boom / a 'bruh' on the reveal, crunchy bass-boosted audio, big caption",
+    "cinematic": "a trailer: slow motion on the key moment, letterbox bars, warm grade and grain, fades, a dramatic sound instead of the original audio",
+}
+REFORMATS.update(STYLES)
+STYLE_FX = {"goofy": ("zoom", "boom", "bruh", "nah", "whoosh"), "cinematic": ("slow", "riser")}
+SFX_DIR = SOUND / "_sfx"   # synthesized once (ffmpeg lavfi; 'bruh'/'nah' said by the narration voice)
 AVATARS = CLIPS / "_avatar"   # clips/_avatar/<name>/<reaction>.mp4 — generated once, reused by every reaction reformat
 REACTIONS = {   # what the avatar does; one short clip per key, image-to-video from the character's picture.
     # Calm, "presenting a product" reactions — nothing theatrical. Every prompt keeps the green screen.
@@ -1756,6 +1763,198 @@ def quiet_y(src: Path, dur: float, band: float, candidates: list[float]) -> floa
     return best
 
 
+def sfx(name: str) -> Path:
+    """A sound effect from the shelf, made on first use: boom (a deep hit), whoosh, riser
+    (a 2.5 s sweep up), scratch (a noisy stop); bruh / nah are said by the narration voice."""
+    SFX_DIR.mkdir(parents=True, exist_ok=True)
+    out = SFX_DIR / f"{name}.wav"
+    if out.exists():
+        return out
+    base = ["ffmpeg", "-y", "-v", "error"]
+    if name == "boom":
+        run(base + ["-f", "lavfi", "-i", "sine=frequency=52:duration=0.9", "-f", "lavfi", "-i", "anoisesrc=d=0.18:color=brown:amplitude=0.9",
+                    "-filter_complex", "[0]afade=t=out:st=0.05:d=0.85:curve=exp,volume=4,alimiter=limit=0.95[a];[1]lowpass=f=300,afade=t=out:d=0.18[b];[a][b]amix=inputs=2:normalize=0,aformat=sample_rates=44100:channel_layouts=stereo[o]",
+                    "-map", "[o]", str(out)])
+    elif name == "whoosh":
+        run(base + ["-f", "lavfi", "-i", "anoisesrc=d=0.7:color=white:amplitude=0.7",
+                    "-af", "bandpass=f=1400:w=900,afade=t=in:d=0.3,afade=t=out:st=0.3:d=0.4,aformat=sample_rates=44100:channel_layouts=stereo", str(out)])
+    elif name == "riser":
+        run(base + ["-f", "lavfi", "-i", "aevalsrc=sin(2*PI*t*(70+140*t))*(t/2.5)*0.8:d=2.5:s=44100",
+                    "-af", "aecho=0.6:0.4:60:0.3,aformat=sample_rates=44100:channel_layouts=stereo", str(out)])
+    elif name == "scratch":
+        run(base + ["-f", "lavfi", "-i", "anoisesrc=d=0.35:color=pink:amplitude=0.8",
+                    "-af", "bandpass=f=2200:w=1500,tremolo=f=28:d=0.9,afade=t=out:st=0.15:d=0.2,aformat=sample_rates=44100:channel_layouts=stereo", str(out)])
+    elif name in ("bruh", "nah"):
+        tts(name, default_voice(), out)
+    else:
+        die(f"no such sound effect '{name}' — have: boom, whoosh, riser, scratch, bruh, nah")
+    return out
+
+
+def parse_moments(spec: str | None, kind: str) -> list[dict]:
+    """"1.2:zoom,3:boom" → [{t, fx}] for a style; fx must be one of the style's effects."""
+    out = []
+    for item in [x.strip() for x in (spec or "").split(",") if x.strip()]:
+        if ":" not in item:
+            die(f"moment '{item}' needs a time: 2.5:zoom")
+        t, fx = item.split(":", 1)
+        fx = fx.strip()
+        if fx not in STYLE_FX.get(kind, ()):
+            die(f"'{fx}' is not a {kind} effect — have: {', '.join(STYLE_FX.get(kind, ()))}")
+        out.append({"t": round(float(t), 2), "fx": fx})
+    return sorted(out, key=lambda m: m["t"])
+
+
+def default_moments(kind: str, dur: float) -> list[dict]:
+    if kind == "goofy":
+        return [{"t": round(dur * 0.25, 2), "fx": "zoom"}, {"t": round(dur * 0.55, 2), "fx": "boom"}, {"t": round(dur * 0.55, 2), "fx": "zoom"}]
+    return [{"t": round(dur * 0.45, 2), "fx": "slow"}]
+
+
+def style_sound(project: dict) -> Path | None:
+    """The style's own sound: the project's pick, else (cinematic) the first pool sound
+    that is not the source's audio, else none."""
+    if project.get("style_sound"):
+        p = ROOT / project["style_sound"]
+        return p if p.exists() else None
+    if project["reformat"] == "cinematic":
+        for cand in pool_sounds({project.get("sound") or ""}):
+            return ROOT / cand["sound"]
+    return None
+
+
+def render_style(project: dict, args) -> None:
+    """goofy / cinematic: the same cut, a different feel (see STYLES)."""
+    src = ROOT / project["source"]
+    kind = project["reformat"]
+    w, h = (540, 960) if args.draft else (W, H)
+    dur = float(project["length"])
+    name = args.name or out_name(project)
+    od = out_dir(project)
+    work = od / f".reformat_{name}"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True)
+    moments = project.get("moments") or default_moments(kind, dur)
+    cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)]
+    n_in = 1
+    has_src_audio = has_audio(src)
+    if not has_src_audio:
+        cmd += ["-f", "lavfi", "-t", f"{dur:.3f}", "-i", "anullsrc=r=44100:cl=stereo"]
+        src_audio = "[1:a]"
+        n_in = 2
+    else:
+        src_audio = "[0:a]"
+    filters: list[str] = []
+    mixes: list[str] = []
+    snd = style_sound(project)
+    total = dur
+
+    if kind == "goofy":
+        zooms = [m["t"] for m in moments if m["fx"] == "zoom"]
+        booms = [m["t"] for m in moments if m["fx"] == "boom"]
+        z = "1" + "".join(f"+0.22*between(t,{t:.3f},{t + 0.55:.3f})" for t in zooms)
+        shake = "".join(f"+8*sin(t*140)*between(t,{t:.3f},{t + 0.3:.3f})" for t in booms)
+        filters.append(
+            f"[0:v]fps={FPS},scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
+            f"scale=w='iw*({z})':h='ih*({z})':eval=frame,crop={w}:{h}:x='(iw-ow)/2{shake}':y='(ih-oh)/2',"
+            f"eq=saturation=1.35:contrast=1.08[vg]"
+        )
+        last = "vg"
+        if project.get("hook"):
+            cap = work / "hook.png"
+            caption_png(project["hook"].upper(), w, h, cap, y_frac=quiet_y(src, dur, 0.14, [0.08, 0.14, 0.2, 0.27, 0.34]), size_frac=0.05)
+            cmd += ["-i", str(cap)]
+            filters.append(f"[{last}][{n_in}:v]overlay=0:0:format=auto[vh]")
+            last = "vh"
+            n_in += 1
+        filters.append(f"[{last}]format=yuv420p[vo]")
+        # audio: the original, crunchy; the hits on their moments; a meme sound under it if chosen
+        filters.append(f"{src_audio}bass=g=7,acrusher=bits=10:mix=0.15,alimiter=limit=0.9[a0]")
+        mix_in = ["[a0]"]
+        for m in moments:
+            if m["fx"] in ("boom", "bruh", "nah", "whoosh"):
+                cmd += ["-i", str(sfx(m["fx"]))]
+                filters.append(f"[{n_in}:a]volume={1.6 if m['fx'] == 'boom' else 1.2},adelay={int(m['t'] * 1000)}|{int(m['t'] * 1000)}[x{n_in}]")
+                mix_in.append(f"[x{n_in}]")
+                n_in += 1
+        if snd:
+            cmd += ["-i", str(snd)]
+            filters.append(f"[{n_in}:a]atrim=0:{dur:.3f},asetpts=PTS-STARTPTS,volume=0.45,afade=t=out:st={max(0.0, dur - 0.5):.3f}:d=0.5[m]")
+            mix_in.append("[m]")
+            n_in += 1
+        filters.append("".join(mix_in) + f"amix=inputs={len(mix_in)}:duration=first:normalize=0[ao]")
+
+    else:  # cinematic
+        slow_factor, slow_len = 2.5, 1.2
+        slows = [m["t"] for m in moments if m["fx"] == "slow"]
+        cuts, segs = 0.0, []
+        for t in slows:
+            if t <= cuts or t + slow_len > dur:
+                continue
+            segs.append((cuts, t, 1.0))
+            segs.append((t, t + slow_len, slow_factor))
+            cuts = t + slow_len
+        segs.append((cuts, dur, 1.0))
+        total = sum((b - a) * f for a, b, f in segs)
+        base = f"[0:v]fps={FPS},scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,split={len(segs)}" + "".join(f"[p{i}]" for i in range(len(segs)))
+        filters.append(base)
+        for i, (a, b, f) in enumerate(segs):
+            filters.append(f"[p{i}]trim=start={a:.3f}:end={b:.3f},setpts=(PTS-STARTPTS)*{f}[s{i}]")
+        filters.append("".join(f"[s{i}]" for i in range(len(segs))) + f"concat=n={len(segs)}:v=1:a=0[vc]")
+        bar = int(h * 0.09)
+        filters.append(
+            f"[vc]eq=contrast=1.12:saturation=0.82:brightness=-0.02,colorbalance=rs=0.05:bs=-0.05,vignette=PI/4.5,noise=alls=9:allf=t,"
+            f"drawbox=x=0:y=0:w={w}:h={bar}:color=black:t=fill,drawbox=x=0:y={h - bar}:w={w}:h={bar}:color=black:t=fill,"
+            f"fade=t=in:d=0.6,fade=t=out:st={max(0.0, total - 0.8):.3f}:d=0.8[vg]"
+        )
+        last = "vg"
+        if project.get("hook"):
+            cap = work / "hook.png"
+            caption_png(project["hook"], w, h, cap, y_frac=0.80, size_frac=0.03)
+            cmd += ["-i", str(cap)]
+            filters.append(f"[{last}][{n_in}:v]overlay=0:0:format=auto[vh]")
+            last = "vh"
+            n_in += 1
+        filters.append(f"[{last}]format=yuv420p[vo]")
+        # audio: the dramatic sound carries the whole thing (the original audio would not survive the retiming)
+        if snd:
+            cmd += ["-i", str(snd)]
+            filters.append(f"[{n_in}:a]atrim=0:{total:.3f},asetpts=PTS-STARTPTS,afade=t=in:d=0.5,afade=t=out:st={max(0.0, total - 1.0):.3f}:d=1.0[m]")
+            n_in += 1
+            mix_in = ["[m]"]
+        else:
+            cmd += ["-f", "lavfi", "-t", f"{total:.3f}", "-i", "anullsrc=r=44100:cl=stereo"]
+            filters.append(f"[{n_in}:a]anull[m]")
+            n_in += 1
+            mix_in = ["[m]"]
+        for m in moments:
+            if m["fx"] == "riser" or (m["fx"] == "slow" and True):
+                # a riser leads into every slow moment (ends on it) and on explicit riser moments
+                t_src = m["t"]
+                t_out = sum((min(b, t_src) - a) * f for a, b, f in segs if a < t_src)  # time in the retimed video
+                start = max(0.0, t_out - 2.5)
+                cmd += ["-i", str(sfx("riser"))]
+                filters.append(f"[{n_in}:a]volume=0.7,adelay={int(start * 1000)}|{int(start * 1000)}[x{n_in}]")
+                mix_in.append(f"[x{n_in}]")
+                n_in += 1
+        filters.append("".join(mix_in) + f"amix=inputs={len(mix_in)}:duration=first:normalize=0[ao]")
+
+    cmd += ["-filter_complex", ";".join(filters), "-map", "[vo]", "-map", "[ao]", "-r", str(FPS), "-t", f"{total:.3f}"]
+    out_path = od / f"{name}.mp4"
+    tail = ["-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-movflags", "+faststart", str(out_path)]
+    vt = ["-c:v", "h264_videotoolbox", "-b:v", "4M" if args.draft else "12M", "-profile:v", "high", "-allow_sw", "1"]
+    x264 = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23" if args.draft else "19"]
+    if args.verbose:
+        print(" ".join(cmd + vt + tail))
+    p = subprocess.run(cmd + vt + tail, text=True, capture_output=True)
+    if p.returncode:
+        p = subprocess.run(cmd + x264 + tail, text=True, capture_output=True)
+        if p.returncode:
+            die(f"ffmpeg failed:\n{p.stderr[-3000:]}")
+    shutil.rmtree(work, ignore_errors=True)
+    keep_render(out_path, name, args.draft, f"{kind} style · {total:.1f}s · {w}x{h}")
+
+
 def reformat_summary(project: dict) -> str:
     kind = project.get("reformat")
     if kind == "hook":
@@ -1763,6 +1962,11 @@ def reformat_summary(project: dict) -> str:
     if kind == "narrated":
         lines = project.get("lines") or []
         return f'{len(lines)} line{"s" if len(lines) != 1 else ""} ({project.get("voice") or default_voice()}): ' + (" | ".join(lines) if lines else "(none yet)")
+    if kind in STYLES:
+        ms = project.get("moments") or []
+        return (f'moments: ' + (", ".join(f"{m['t']}:{m['fx']}" for m in ms) if ms else "(default)") +
+                (f' · sound {Path(project["style_sound"]).stem}' if project.get("style_sound") else "") +
+                (f' · hook: {project["hook"]}' if project.get("hook") else ""))
     if kind == "reaction":
         rs = project.get("reactions") or []
         return f'avatar {project.get("avatar") or "(none)"}: ' + (", ".join(f"{r['t']}:{r['kind']}" for r in rs) if rs else "(spread evenly)")
@@ -1776,6 +1980,9 @@ def render_reformat(project: dict, args) -> None:
     if not src.exists():
         die(f"the source video is gone: {project['source']}")
     kind = project["reformat"]
+    if kind in STYLES:
+        render_style(project, args)
+        return
     w, h = (540, 960) if args.draft else (W, H)
     dur = float(project["length"])
     name = args.name or out_name(project)
@@ -1983,9 +2190,18 @@ def cmd_reformat(args) -> None:
     avatar_name = args.avatar   # the reacting avatar only when asked for (Christian dropped it, 2026-10-19)
 
     def apply_copy(project: dict) -> None:
-        if args.hook is not None and project["reformat"] == "hook":
+        if args.hook is not None and project["reformat"] in ("hook", *STYLES):
             project["hook"] = args.hook.strip() or None
             project["caption"] = project["hook"]
+        if project["reformat"] in STYLES:
+            if args.moments is not None:
+                project["moments"] = parse_moments(args.moments, project["reformat"])
+            if args.sound is not None:
+                sp = Path(args.sound)
+                sp = sp if sp.is_absolute() else ROOT / sp
+                if args.sound and not sp.exists():
+                    die(f"no such sound: {args.sound}")
+                project["style_sound"] = rel(sp) if args.sound else None
         if lines is not None and project["reformat"] == "narrated":
             project["lines"] = lines
         if comment is not None and project["reformat"] == "reply":
@@ -2057,6 +2273,7 @@ def cmd_reformat(args) -> None:
             "hook": None, "lines": [], "comment": None, "voice": args.voice or default_voice(),
             "avatar": avatar_name if kind == "reaction" else None, "reactions": [],
             "comments": comments[:20] if kind == "reply" else [],
+            "moments": [], "style_sound": None,
         }
         apply_copy(project)
         save_project(project)
@@ -2690,7 +2907,7 @@ def main() -> None:
     s.add_argument("--name", metavar="FOLDER", help="with --video: the clips folder / project prefix (default: the file's name, or remixN for a link)")
     s.add_argument("--cookies", metavar="BROWSER", help="with --video <link> on Instagram: chrome / safari / firefox login for yt-dlp")
     s.set_defaults(fn=cmd_remix)
-    s = sub.add_parser("reformat", help="three reformats of a posted video (hook line / TikTok-voice narration / comment reply) as projects <F>_1..3 — or, on one of them, set its copy")
+    s = sub.add_parser("reformat", help="reformats of a posted video — hook line / narration / comment reply, plus the styles goofy and cinematic with --only — as projects <F>_N; or, on one of them, set its copy")
     s.add_argument("--video", metavar="MP4|LINK", help="the posted video: a file, or a TikTok / Instagram / YouTube link")
     s.add_argument("--name", metavar="FOLDER", help="with --video: the folder / project prefix (default: the file's name, or reelN for a link)")
     s.add_argument("--cookies", metavar="BROWSER", help="with an Instagram link: chrome / safari / firefox login for yt-dlp")
@@ -2701,6 +2918,8 @@ def main() -> None:
     s.add_argument("--comment", metavar="TEXT", help="the comment the video answers (reply reformat)")
     s.add_argument("--user", metavar="HANDLE", help="who wrote the comment, if real (shown as 'Reply to @user')")
     s.add_argument("--pick", type=int, metavar="N", help="answer the N-th fetched comment of the post (most liked first; `comments <link>` lists them)")
+    s.add_argument("--moments", metavar="T:FX,…", help="a style's moments: goofy zoom/boom/bruh/nah/whoosh, cinematic slow/riser — e.g. 1.2:zoom,3:boom (default: a guess)")
+    s.add_argument("--sound", metavar="MP3", help="a style's sound from the pool (goofy: under the original audio; cinematic: instead of it; '' = none)")
     s.add_argument("--another", action="store_true", help="on a reply: one more reply to the same video, answering another comment (--pick / --comment)")
     s.add_argument("--avatar", metavar="NAME", help="the character for the reaction reformat (default: the first under clips/_avatar/)")
     s.add_argument("--reactions", metavar="T:KIND,…", help="when the avatar does what, e.g. 0:nod,2.5:shocked,6:laugh (reaction reformat; default: spread evenly)")

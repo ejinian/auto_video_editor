@@ -183,6 +183,21 @@ is the chain: one more reply to the same video answering another comment, as a n
 (same source, comments and board). The reply editor lists the comments to click; "Another
 reply with this comment"; the Claude ask picks the comment with the best hook potential
 (`--pick`) and only writes one when the list is empty.
+**Styles (2026-10-19, "not just cut it up"):** two more reformat kinds change the FEEL of the
+same cut, with ffmpeg and the pool only (`render_style`): **goofy** — punch-zooms (`scale`
+with `eval=frame` + `crop`, +22 % for 0.55 s) and a shake on the moments, a boom / 'bruh' /
+'nah' / whoosh on the reveal, crunchy audio (`bass=g=7,acrusher`), an all-caps big caption,
+optionally a meme sound from the pool under it; **cinematic** — slow motion (2.5×, 1.2 s)
+on the key moments via trim/setpts/concat (the length grows), a riser leading into each,
+letterbox bars, warm grade + vignette + grain, fades, a pool sound INSTEAD of the original
+audio (the project's `style_sound`, else the first pool sound that is not the source's),
+a small caption at 80 %. `moments: [{t, fx}]` (`--moments "1.2:zoom,3:boom"`; fx per style
+in `STYLE_FX`; empty = `default_moments`), `--sound <pool mp3>` (`''` = none), `--hook`.
+The SFX shelf `sound/_sfx/` is synthesized on first use (`sfx()`: boom = 52 Hz sine +
+brown noise, whoosh, riser = 2.5 s sweep, scratch; bruh/nah = the narration voice saying
+it). They are made only with `--only …,goofy,cinematic`; the Remix page's style
+checkboxes (both on by default) add them to the three framings; the Claude ask picks the
+moments and the sound from the frames.
 In the app the Remix page's default is **Reformat** (Re-cut ×4 is the other option,
 for raw footage); the job lands on `/video/F_1?ask=reformat`, which fires a Claude ask
 (`ReformatEditor`): read the frame sheet, write the hook, the narration and the comment
