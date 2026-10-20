@@ -10,7 +10,7 @@ export default async function Remix() {
   return (
     <div>
       <h1>Remix</h1>
-      <p className="lede">A reel that did numbers deserves a second run. Paste its link or drop the file and it comes back as three posts with the same cut and a new framing: a hook line on screen, a narration in your voice, a reply to one of the post's real comments — Claude writes the copy. Each lands in the feed like any other video, with the post step. Raw footage can be re-cut instead.</p>
+      <p className="lede">A reel that did numbers deserves a second run. Paste its link or drop the file and it comes back as three posts with the same cut and a new framing: a hook line on screen, a narration in your voice, a reply to one of the post&apos;s real comments, plus goofy and cinematic versions — Claude writes the copy and picks the moments. Each lands in the feed like any other video, with the post step. Raw footage can be re-cut instead.</p>
       <RemixUpload videos={ps} />
     </div>
   );

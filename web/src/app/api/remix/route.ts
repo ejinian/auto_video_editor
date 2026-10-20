@@ -22,22 +22,24 @@ function nextRemixFolder(prefix = "remix"): string {
 /** JSON {link, name?, cookies?}: a posted TikTok / Instagram / YouTube video. The CLI
  *  downloads it into clips/<name>/.source/ and goes on exactly like an uploaded file. */
 async function fromLink(req: Request) {
-  const b = (await req.json().catch(() => ({}))) as { link?: string; name?: string; cookies?: string; mode?: string };
+  const b = (await req.json().catch(() => ({}))) as { link?: string; name?: string; cookies?: string; mode?: string; styles?: string[] };
   const link = b.link?.trim() ?? "";
   if (!/^https?:\/\/\S+$/.test(link)) return Response.json({ error: "paste a TikTok, Instagram or YouTube link" }, { status: 400 });
   const folder = b.name?.trim() || nextRemixFolder(b.mode === "recut" ? "remix" : "reel");
   if (!validFolderName(folder)) return Response.json({ error: "bad name: letters, digits, space, _ - . only" }, { status: 400 });
   if (clipsFolderExists(folder)) return Response.json({ error: `clips/${folder}/ already exists — give it another name` }, { status: 409 });
-  return start(b.mode, link, folder, b.cookies, link.replace(/^https?:\/\/(www\.)?/, "").slice(0, 50));
+  return start(b.mode, link, folder, b.cookies, link.replace(/^https?:\/\/(www\.)?/, "").slice(0, 50), Array.isArray(b.styles) ? b.styles.map(String) : []);
 }
 
 /** One job for a posted video. "reformat" (the default): three framings of the same
  *  cut, copy written by Claude on the page that opens (`?ask=reformat`). "recut": four
  *  re-cuts of its shots (`remix --video`), the right call for raw footage, not for a
  *  finished reel. */
-function start(mode: string | undefined, video: string, folder: string, cookies: string | undefined, label: string) {
+function start(mode: string | undefined, video: string, folder: string, cookies: string | undefined, label: string, styles: string[] = []) {
   const recut = mode === "recut";
   const argv = recut ? ["remix", "--video", video, "--name", folder, "--render"] : ["reformat", "--video", video, "--name", folder];
+  const extra = styles.filter((s) => /^(goofy|cinematic)$/.test(s));
+  if (!recut && extra.length) argv.push("--only", ["hook", "narrated", "reply", ...extra].join(","));
   if (cookies && /^(chrome|safari|firefox)$/.test(cookies)) argv.push("--cookies", cookies);
   const source = nextProjectName(folder);
   const job = startJob(recut ? `Remix ${label} ×4` : `Reformat ${label}`, [beatcut(...argv)], recut ? `/video/${source}` : `/video/${source}?ask=reformat`);
@@ -64,10 +66,11 @@ export async function POST(req: Request) {
   const bb = Busboy({ headers: { "content-type": ct }, preservePath: true, limits: { files: 1 } });
   let wanted = "";
   let mode = "";
+  let styles = "";
   let saved: { tmp: string; name: string } | null = null;
   let reason: string | null = null;
   const writes: Promise<void>[] = [];
-  bb.on("field", (k, v) => { if (k === "name") wanted = v.trim(); if (k === "mode") mode = v.trim(); });
+  bb.on("field", (k, v) => { if (k === "name") wanted = v.trim(); if (k === "mode") mode = v.trim(); if (k === "styles") styles = v.trim(); });
   bb.on("file", (_field, file, info) => {
     const fname = path.basename(info.filename ?? "").trim();
     if (!fname || fname !== info.filename || fname.startsWith(".") || !isVideo(fname)) {
@@ -98,5 +101,5 @@ export async function POST(req: Request) {
   const dest = path.join(CLIPS, folder, ".source", fname);
   await fsp.mkdir(path.dirname(dest), { recursive: true });
   await fsp.rename(tmp, dest);
-  return start(mode, rel(dest), folder, undefined, fname);
+  return start(mode, rel(dest), folder, undefined, fname, styles.split(",").map((x) => x.trim()).filter(Boolean));
 }

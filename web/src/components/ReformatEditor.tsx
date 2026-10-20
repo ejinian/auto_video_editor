@@ -8,12 +8,15 @@ import { useJob } from "@/components/useJob";
 import { mb, mediaUrl } from "@/lib/format";
 import type { ProjectDetail } from "@/lib/types";
 
-const KIND_LABEL: Record<string, string> = { hook: "Hook line", narrated: "Narrated", reply: "Comment reply", reaction: "Reacting avatar" };
+const KIND_LABEL: Record<string, string> = { hook: "Hook line", narrated: "Narrated", reply: "Comment reply", reaction: "Reacting avatar", goofy: "Goofy", cinematic: "Cinematic" };
+const STYLE_FX: Record<string, string[]> = { goofy: ["zoom", "boom", "bruh", "nah", "whoosh"], cinematic: ["slow", "riser"] };
 const KIND_HINT: Record<string, string> = {
   hook: "the same video with a new line on screen — the cheapest second run a reel can get",
   narrated: "two or three lines said over the footage in the TikTok voice, each shown as it is said; the original audio is ducked under it",
   reply: "the video as the answer to a comment, with the comment bubble on top — pick one of the post's real comments below (the bubble then says who asked), or type one",
   reaction: "your character reacts in the corner, silent: short clips of it (nod, shocked, laugh, point, think) switched at the moments that earn a reaction; the original audio stays",
+  goofy: "the meme treatment: punch-zooms and a shake at the moments, a boom or a 'bruh' on the reveal, crunchy bass-boosted audio, a big caption; a meme sound from the pool can play under it",
+  cinematic: "a trailer: slow motion on the key moment (a riser leads into it), letterbox bars, warm grade and grain, fades; a dramatic sound from the pool replaces the original audio",
 };
 
 /** The copy of a reformat: the one thing that makes it a different post. Save & render
@@ -33,6 +36,14 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
   const comments = pr.comments ?? [];
   const [avatar, setAvatar] = useState(pr.avatar ?? "");
   const [reactions, setReactions] = useState((pr.reactions ?? []).map((r) => `${r.t}:${r.kind}`).join(", "));
+  const [moments, setMoments] = useState((pr.moments ?? []).map((m) => `${m.t}:${m.fx}`).join(", "));
+  const [styleSound, setStyleSound] = useState(pr.style_sound ?? "");
+  const [pool, setPool] = useState<Array<{ path: string; title: string }>>([]);
+  const isStyle = kind === "goofy" || kind === "cinematic";
+  useEffect(() => {
+    if (!isStyle) return;
+    fetch("/api/sounds").then((r) => r.json()).then((j: Array<{ path: string; title: string }>) => setPool(j.map((x) => ({ path: x.path, title: x.title })))).catch(() => undefined);
+  }, [isStyle]);
   const [asking, setAsking] = useState<"idle" | "running" | "done" | "error">("idle");
   const params = useSearchParams();
   const fired = useRef(false);
@@ -46,7 +57,9 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
     `Read its frame sheet out/${folder}/_frames_${stem}.jpg (and listen to nothing — judge from the frames and the sound's title). Then write, in the Young Vibas voice: ` +
     `a hook line for the hook reformat (\`reformat -p <name> --hook "…"\`); 2-3 narration lines for the narrated one in the TikTok voice-over style, the first a reaction to what is on screen (\`reformat -p <name> --lines "first|second|third"\`); ` +
     `and for the reply one the comment it answers — if its project json has a \`comments\` list (the post's real comments, most liked first), pick the one with the best hook potential, a question or a doubt the video answers, with \`reformat -p <name> --pick N\` (N is 1-based in that list); only if the list is empty write the question a viewer would ask, with no username (\`--comment "…"\`); ` +
-    `if there is a reaction one, pick 3-5 moments and what the avatar does at each from its clips (nod, shocked, laugh, point, think — \`avatar --list\` shows which exist): \`reformat -p <name> --reactions "0:nod,2.4:shocked,6:laugh"\`. ` +
+    `if there is a reaction one, pick 3-5 moments and what the avatar does at each from its clips (nod, shocked, laugh, point, think — \`avatar --list\` shows which exist): \`reformat -p <name> --reactions "0:nod,2.4:shocked,6:laugh"\`; ` +
+    `for a goofy one pick the moments from the frames — a zoom on the funny beat, a boom (and a zoom) on the reveal, a 'bruh' or 'nah' where a reaction fits — \`reformat -p <name> --moments "1.2:zoom,3.0:boom,3.0:zoom,6:bruh" --hook "…"\` (a short all-caps-worthy line), optionally \`--sound sound/<meme>.mp3\` from the pool; ` +
+    `for a cinematic one pick the key moment to slow down and a dramatic sound from the pool (sound/*.mp3; the .source.json says what each is): \`reformat -p <name> --moments "4.2:slow" --sound sound/<x>.mp3 --hook "…"\` (a quiet, serious line); ` +
     `Run /ig-human on the lines first. Add --render to each reformat command so it renders, then write each one's post caption with /ig-caption into its caption file. End with \`REFORMATS: ${siblings.map((p) => p.name).join(" ")}\`.`;
 
   const writeWithClaude = async () => {
@@ -76,6 +89,7 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
       else { args.comment = comment.trim(); args.user = user.replace(/^@/, "").trim(); }
     }
     if (kind === "reaction") { args.reactions = reactions.split(/[,\n]/).map((x) => x.trim()).filter(Boolean).join(","); if (avatar.trim()) args.avatar = avatar.trim(); }
+    if (isStyle) { args.moments = moments.split(/[,\n]/).map((x) => x.trim()).filter(Boolean).join(","); args.sound = styleSound; args.hook = hook.trim(); }
     run(`/api/projects/${encodeURIComponent(d.name)}/run`, { cmd: "reformat", args });
   };
 
@@ -143,6 +157,27 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
             <div>
               <label className="label">Who wrote it <span className="text-muted">(only if real)</span></label>
               <input className="input !w-40" value={user} onChange={(e) => setUser(e.target.value)} placeholder="@handle" />
+            </div>
+          </div>
+        )}
+        {isStyle && (
+          <div className="space-y-3">
+            <div>
+              <label className="label">Moments <span className="text-muted">(seconds:effect, comma separated — {STYLE_FX[kind].join(", ")}; empty = a guess)</span></label>
+              <input className="input" value={moments} onChange={(e) => setMoments(e.target.value)} placeholder={kind === "goofy" ? "1.2:zoom, 3:boom, 3:zoom, 6:bruh" : "4.2:slow"} />
+            </div>
+            <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              <div>
+                <label className="label">Caption <span className="text-muted">(optional)</span></label>
+                <input className="input" value={hook} onChange={(e) => setHook(e.target.value)} placeholder={kind === "goofy" ? "the gym has wifi so it's my office now" : "we never left"} />
+              </div>
+              <div>
+                <label className="label">Sound from the pool <span className="text-muted">({kind === "goofy" ? "under the original audio" : "instead of it"})</span></label>
+                <select className="select" value={styleSound} onChange={(e) => setStyleSound(e.target.value)}>
+                  <option value="">{kind === "goofy" ? "none" : "first in the pool"}</option>
+                  {pool.map((p) => <option key={p.path} value={p.path}>{p.title}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         )}

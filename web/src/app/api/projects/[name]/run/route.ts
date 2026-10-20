@@ -42,6 +42,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ name: s
       if (num(a.user)) argv.push("--user", num(a.user));
       if (num(a.voice)) argv.push("--voice", num(a.voice));
       if (num(a.pick) && /^\d+$/.test(num(a.pick))) argv.push("--pick", num(a.pick));
+      if (a.moments !== undefined) argv.push("--moments", num(a.moments));
+      if (a.sound !== undefined) argv.push("--sound", num(a.sound));
       if (a.another) argv.push("--another");
       if (num(a.avatar)) argv.push("--avatar", num(a.avatar));
       if (a.reactions !== undefined) argv.push("--reactions", num(a.reactions));
