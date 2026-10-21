@@ -1,0 +1,72 @@
+{
+ "name": "day4_2",
+ "clips": [
+  "clips/day4/third_party_1.mov",
+  "clips/day4/third_party_2.mov"
+ ],
+ "sound": "sound/video-by-alan-samer-z8pq1uiubt.mp3",
+ "beats": "sound/video-by-alan-samer-z8pq1uiubt.beats.json",
+ "audio_start": 0.0,
+ "length": 10.0,
+ "density": {
+  "calm": 4,
+  "hype": 2,
+  "burst": 4,
+  "hold": 4
+ },
+ "preset": "tight",
+ "sync": false,
+ "excluded": [],
+ "hero": null,
+ "first": 2,
+ "story": [],
+ "random": true,
+ "seed": 5,
+ "caption": null,
+ "cuts": [
+  0.0,
+  1.0983213559117615,
+  2.2917509473203452,
+  3.5279057997729026,
+  4.881866026794543,
+  6.073784886586488,
+  7.411644883918822,
+  8.034849066545714,
+  10.0
+ ],
+ "_drops": [],
+ "slots": [
+  {
+   "clip": 2,
+   "in": 7.0
+  },
+  {
+   "clip": 1,
+   "in": 2.57
+  },
+  {
+   "clip": 2,
+   "in": 10.933
+  },
+  {
+   "clip": 1,
+   "in": 1.164
+  },
+  {
+   "clip": 2,
+   "in": 2.343
+  },
+  {
+   "clip": 1,
+   "in": 0.968
+  },
+  {
+   "clip": 2,
+   "in": 3.624
+  },
+  {
+   "clip": 2,
+   "in": 8.573
+  }
+ ]
+}

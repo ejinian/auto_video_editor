@@ -1,0 +1,51 @@
+{
+ "name": "day4_3",
+ "clips": [
+  "clips/day4/third_party_1.mov",
+  "clips/day4/third_party_2.mov"
+ ],
+ "sound": "sound/original-sound-201440.mp3",
+ "beats": "sound/original-sound-201440.beats.json",
+ "audio_start": 0.0,
+ "length": 12.0,
+ "density": {
+  "calm": 16,
+  "hype": 8,
+  "burst": 0,
+  "hold": 8
+ },
+ "preset": "chill",
+ "sync": false,
+ "excluded": [],
+ "hero": null,
+ "first": 2,
+ "story": [
+  2,
+  1
+ ],
+ "random": false,
+ "seed": 2,
+ "caption": null,
+ "cuts": [
+  0.0,
+  5.868102815667748,
+  8.7307,
+  12.0
+ ],
+ "_drops": [],
+ "slots": [
+  {
+   "clip": 2,
+   "in": 0.3
+  },
+  {
+   "clip": 1,
+   "in": 0.5,
+   "reused": true
+  },
+  {
+   "clip": 2,
+   "in": 8.0
+  }
+ ]
+}

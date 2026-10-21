@@ -519,3 +519,15 @@ sound pick must end with the `SOUND:` line.
 rotating formulas via `projects/ideas.md`, saved as `projects/dayN.plan.md`), `/day N`
 (cut two variations, hook on screen, caption), `/day post N` (hand-off). `tools/day.py`
 prints the facts the skill decides from. Skill text: `.claude/skills/day/SKILL.md`.
+
+## Captions skill — real captions from the niche (2026-10-21)
+
+`.claude/skills/captions/` (symlinked to `~/.claude/skills/captions`): `captions.jsonl` is
+~3.8k TikTok/YouTube posts (captions as posted, views, likes, per-creator `multiple`), of
+which ~1k are short niche meme captions about code / AI / Claude; `scripts/find.py` retrieves
+by keyword / top-by-multiple / random sample; `patterns.md` is the distilled read (POV,
+imagine, first-person fear-as-a-bit, "every dev" win; questions and "you" advice lose).
+Every caption request reads it first. Harvest: hashtag feeds via the keyless tikwm
+`challenge/posts` endpoint (search/user endpoints are 403) + creator profiles via `yt-dlp
+--flat-playlist`; the browser pane and headless Chromium both get empty bodies from TikTok's
+own API, don't use them for this. `scripts/build.py` rebuilds from `raw/`.

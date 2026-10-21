@@ -1,0 +1,84 @@
+{
+ "name": "general_5",
+ "clips": [
+  "clips/day2/bush.mov",
+  "clips/day4/third_party_2.mov",
+  "clips/day1/IMG_2743.MOV",
+  "clips/day5/IMG_2550.MOV",
+  "clips/day3/tennis_ckip.mov",
+  "clips/day2/trolley2.mov",
+  "clips/day1/IMG_2752.MOV",
+  "clips/day2/barber_end.mov",
+  "clips/day1/IMG_2751.MOV"
+ ],
+ "sound": "sound/cosmic_mission_cut.mp3",
+ "beats": "sound/cosmic_mission_cut.beats.json",
+ "audio_start": 0.0,
+ "length": 15.0,
+ "density": {
+  "calm": 16,
+  "hype": 8,
+  "burst": 0,
+  "hold": 8
+ },
+ "preset": "chill",
+ "sync": false,
+ "excluded": [],
+ "hero": null,
+ "first": null,
+ "story": [],
+ "random": false,
+ "seed": null,
+ "caption": null,
+ "cuts": [
+  0.0,
+  1.0,
+  2.81,
+  4.61,
+  6.42,
+  8.22,
+  10.04,
+  11.83,
+  13.63,
+  15.0
+ ],
+ "_drops": [],
+ "slots": [
+  {
+   "clip": 1,
+   "in": 1.0
+  },
+  {
+   "clip": 2,
+   "in": 10.5
+  },
+  {
+   "clip": 3,
+   "in": 1.0
+  },
+  {
+   "clip": 4,
+   "in": 14.0
+  },
+  {
+   "clip": 5,
+   "in": 7.3
+  },
+  {
+   "clip": 6,
+   "in": 8.5
+  },
+  {
+   "clip": 7,
+   "in": 3.5
+  },
+  {
+   "clip": 8,
+   "in": 14.0
+  },
+  {
+   "clip": 9,
+   "in": 0.5
+  }
+ ]
+}

@@ -102,7 +102,9 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   bushes), held for a bar or two.
 - Hard cuts only. No transitions, no speed ramps, no zooms. That's the format.
 - Captions are burned in only when Ernest gives the line (`caption "…"`), in TikTok Sans
-  with the black outline, top-centre. Lowercase.
+  with the black outline, top-centre. Lowercase. **Any caption / hook / post-text request
+  goes through the `captions` skill first** (`~/.claude/skills/captions`: ~1k real niche
+  captions with views + multiples, `scripts/find.py`, `patterns.md`) — retrieve, then write.
 - Baked-in commercial audio may be muted by content ID; Ernest accepts that.
 
 ## Lessons log (append, newest last)
@@ -241,3 +243,82 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   worktree's `projects/` is the committed set, so `day3_1` there pointed at Ernest's
   tennis clips, not Christian's gym day: the video page now flags "clips moved or renamed"
   instead of a broken storyboard button.
+- **2026-10-14, day 4 (LA Kings game, 3 clips: solo POV 6.7 s SDR, two third-party 4K60
+  HDR takes of 4.5 s and 13 s).** Ernest dropped the clips into `out/day4/<pov folders>/`
+  rather than `clips/day4/` — moved them to `clips/day4/{solo.mp4, third_party_1.mov,
+  third_party_2.mov}` and said so. Brief: "a few outputs, I pick one, THEN CapCut" → four
+  variations (`day4_1..4`), each a different sound from the pool, different opener and
+  preset (loose story / tight random / chill 4-shot / tight 808s), no CapCut. The solo
+  POV's tilt-up from the code to the rink (1.5-2.5 s) is the hook; the story plan skipped
+  it (slot 1 ended mid-tilt, slot 2 started after it) → `in 1 0.7` so the 1.8 s opener
+  carries hands → tilt → rink. Random plans ended on the weakest frame (hands, or the
+  static from-behind shot) → `in 9 …` to end on the reveal / the close-up. `--preset
+  chill --story 3,1,2` over 12 s produced TWO slots, both the longest clip, two clips
+  unused — chill + few clips = plan by hand (`split`, then `set <slot> <clip> --at`).
+  `frames <explicit HDR path>` did not build the proxy on first run here (the `.sdr/`
+  folder was missing until `sdr_proxy()` was called directly) — check `cmd_frames`'
+  probe path; `plan`/`render` go through `scan_clips` and are fine. All four 100% on the
+  scene check, AAC present, delivered in one SendUserFile. `final/` was cleared first on
+  request (the old nine still exist under `out/*/` and `out/*/versions/`).
+- **2026-10-14, day 4 re-roll.** Ernest rejected the first four for MIXING the solo POV
+  clip with the third-party takes ("I don't like that"), and a lone POV clip isn't worth
+  cutting at all — rule 11 in memory: one point of view per video. Re-rolled three from
+  the two third-party takes only (`day4_1..3`, different opener each: from-behind, the
+  side close-up, the wide push-in). With two clips, alternate behind / wide / close so no
+  two adjacent slots share a framing. `--preset chill` again dealt both slots to the long
+  take → `split` + `set`. day4_4 deleted. All three 100% on the scene check.
+- **2026-10-20, "life after claude code" prep (generalized video, one clip from every
+  shoot).** Ernest's sound: ROÜGE "Cosmic Mission" (Detriti Records, YouTube chapter
+  29:20-34:18 of `SnscU4OG8YE`; whole track in `sound/cosmic-mission-rouge.mp3`, 136 bpm,
+  big drop at 88.4 s). He wants ONLY seconds 15-30 → `sound/cosmic_mission_cut.mp3`
+  (15.0 s, re-encoded cut). His rhythm rule for it: a new clip on every heavy bass-drum
+  hit, "a little under 2 s" = one bar. Low-pass onset analysis puts the kicks at 1.00,
+  2.81, 4.61, 6.42, 8.22, 10.04, 11.83, 13.63 s (1.80 s apart, a half-beat ghost kick
+  0.45 s after most of them — ignore those). So the cut list is kick-synced: 8 shots, the
+  opener 1.0 s then ~1.8 s each; make them with `cut <slot> <sec>` at those times (or
+  `plan --sync` if a preset gives one cut per bar). Clips not yet downloaded.
+- **2026-10-20, "life after claude code" samples (general_3/4/5).** Five shoots now
+  (day 5 = a bar/restaurant night, SDR: IMG_2539 dark patio, IMG_2547 from behind at the
+  bar, IMG_2549 1.8 s close typing with a beer, IMG_2550 bar + TV). Ernest's grid for
+  Cosmic Mission: a 1.0 s opener, then a new clip on every kick (every 1.80 s) → 9 slots
+  over the 15 s cut. Built with the CLI only: `plan --preset chill --length 15 --start 0`,
+  `merge 2` until one slot, `cut 1 <kick>` for each kick time descending, then `set k k
+  --at <in>` with the 9 clips passed in slot order — a 40-line driver script
+  (`kickbuild.py`) did all three. A per-day six-frame contact sheet (one image per day,
+  every clip a row) is the fastest way to choose one clip per shoot; `frames` per clip
+  is for in-points. Lessons: IMG_2788 (tennis) is a far-away figure in every frame — the
+  close look Ernest had was his 315% CapCut zoom — use `tennis_ckip` 1.0 (swing at 1.6)
+  or 7.3 (swing at 7.8) instead; IMG_2739 only reads from 12 s (closer to the cart).
+  Each sample: a different opener (bar close-up / tennis swing / bushes), no two slots
+  from the same day adjacent, every day present. All three 8/8 on the scene check with
+  cuts exactly on the kick list.
+- **2026-10-21, Ernest-only re-roll (general_6/7/8).** New standing rules (memory rule
+  12): only Ernest in his videos (Christian = the white cap — that rules out the bananas,
+  pumpkin box, cart and most of day 1; only IMG_2743 and IMG_2746 from 6 s are his), tennis
+  only where the ball is actually hit, and at least one clip of the haircut being cut.
+  The hits had to be FOUND on a 26-frame sheet of the raw take: `tennis_ckip` 4.4-6.2 s
+  (ball at 4.9-5.4) and 8.9-10.7 s (overhead, ball at 9.4-9.8); the earlier "swing"
+  in-points (1.0, 7.3) were him standing still — never trust a hit moment read off a
+  rendered video's sheet, the times are the render's, not the clip's. `set` refuses a
+  clip shorter than the slot by even a frame (IMG_2549 1.83 s vs a 1.81 s slot) — the
+  1.0 s opener is the place for sub-2 s clips. `in` can fix a back-to-camera frame
+  (IMG_2743 2.0 → 5.0). All three 8/8 on the scene check.
+- **2026-10-21, general_final (Ernest's pick: general_7 + 3 changes).** "Extend the music
+  ~10 s with more well-cut beats" = the SAME kick grid continued: the kicks keep landing
+  every 1.80 s through the whole intro (measured to 26.3 s), so the audio was re-cut from
+  the full track to end exactly ON a kick (`sound/cosmic_mission_cut_24s.mp3`, song
+  15→39.47 s) → 14 slots, 13 cuts, the video ends on a downbeat. "Add a few clips from 6
+  and 8" = appended after 7's nine (bushes, Kings close-up, oil shelf, trolley1, overhead
+  hit as the closer); "barber at a different angle like in 6" = `barber_end` 13.9 → 1.0.
+  A project named without `<folder>_V` renders to `out/<name>.mp4` and its board to
+  `out/_<name>_board.jpg` (not `out/general/`); `final/` is unaffected. 13/13 on the
+  scene check.
+- **2026-10-21, general_final → CapCut.** `export --open` wrote the draft but fell back to
+  "click the first tile": CapCut came up with a SMALLER home window at (132,88) 1464x976
+  (not full-size at (0,33)), and the tile click evidently fired before the grid was
+  there. Accessibility was still trusted. The tile offset (306,782) from the window's
+  top-left is STILL right for the new home layout (verified on a capture), so a manual
+  Quartz click at window-origin + (307,783) opened it on the first try (`Timelines/`
+  appeared within 6 s). If this repeats, lengthen the home-window wait in
+  `open_in_capcut()` before raising the retry count. He asked for CapCut explicitly, so
+  the click was in scope.

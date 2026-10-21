@@ -1,0 +1,8 @@
+{
+ "sound": "sound/cosmic_mission_cut.mp3",
+ "beats": "sound/cosmic_mission_cut.beats.json",
+ "meta": {
+  "source": "/Users/ejinian/Desktop/beatcut/sound/cosmic_mission_cut.mp3",
+  "title": "cosmic_mission_cut"
+ }
+}

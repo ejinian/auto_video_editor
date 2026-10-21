@@ -1,0 +1,114 @@
+{
+ "name": "general_final",
+ "clips": [
+  "clips/day3/tennis_ckip.mov",
+  "clips/day2/barber_end.mov",
+  "clips/day5/IMG_2547.MOV",
+  "clips/day1/IMG_2746.MOV",
+  "clips/day4/third_party_1.mov",
+  "clips/day2/apple_store_sit.MOV",
+  "clips/day3/IMG_2788.MOV",
+  "clips/day2/trolley2.mov",
+  "clips/day5/IMG_2550.MOV",
+  "clips/day2/bush.mov",
+  "clips/day4/third_party_2.mov",
+  "clips/day1/IMG_2743.MOV",
+  "clips/day2/trolley1.mov",
+  "clips/day3/tennis_ckip.mov"
+ ],
+ "sound": "sound/cosmic_mission_cut_24s.mp3",
+ "beats": "sound/cosmic_mission_cut_24s.beats.json",
+ "audio_start": 0.0,
+ "length": 24.47,
+ "density": {
+  "calm": 16,
+  "hype": 8,
+  "burst": 0,
+  "hold": 8
+ },
+ "preset": "chill",
+ "sync": false,
+ "excluded": [],
+ "hero": null,
+ "first": null,
+ "story": [],
+ "random": false,
+ "seed": null,
+ "caption": null,
+ "cuts": [
+  0.0,
+  1.0,
+  2.81,
+  4.61,
+  6.42,
+  8.22,
+  10.04,
+  11.83,
+  13.63,
+  15.44,
+  17.24,
+  19.05,
+  20.85,
+  22.66,
+  24.47
+ ],
+ "_drops": [],
+ "slots": [
+  {
+   "clip": 1,
+   "in": 4.6
+  },
+  {
+   "clip": 2,
+   "in": 1.0
+  },
+  {
+   "clip": 3,
+   "in": 10.0
+  },
+  {
+   "clip": 4,
+   "in": 8.0
+  },
+  {
+   "clip": 5,
+   "in": 1.0
+  },
+  {
+   "clip": 6,
+   "in": 5.0
+  },
+  {
+   "clip": 7,
+   "in": 4.5
+  },
+  {
+   "clip": 8,
+   "in": 8.5
+  },
+  {
+   "clip": 9,
+   "in": 14.0
+  },
+  {
+   "clip": 10,
+   "in": 1.0
+  },
+  {
+   "clip": 11,
+   "in": 10.5
+  },
+  {
+   "clip": 12,
+   "in": 5.0
+  },
+  {
+   "clip": 13,
+   "in": 0.5
+  },
+  {
+   "clip": 14,
+   "in": 8.9
+  }
+ ]
+}
