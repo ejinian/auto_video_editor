@@ -2910,6 +2910,12 @@ def cmd_render(args) -> None:
 # ------------------------------------------------------------------ export
 
 CAPCUT_DRAFTS = Path.home() / "Movies" / "CapCut" / "User Data" / "Projects" / "com.lveditor.draft"
+# Ernest's rule (2026-10-21): every CapCut export carries the caption layer already styled
+# the way IG/TikTok captions look — TikTok Sans, white, thin black stroke, top-centre, the
+# whole length — with the project's caption as the text, or a placeholder he retypes.
+# CapCut's font picker can't reach a local TTF, so the style is written into the draft JSON.
+CAPCUT_CAPTION = {"font": ROOT / "fonts" / "TikTokSans-700.ttf", "size": 9.0, "stroke": 0.06, "y": 0.55,
+                  "placeholder": "caption goes here"}
 
 
 def capcut_bin() -> list[str]:
@@ -3051,6 +3057,65 @@ def capcut_spec(project: dict, clips: list[dict]) -> tuple[dict, float]:
     return spec, total
 
 
+def _style_capcut_text(path: Path, text: str, font: Path, size: float, stroke: float, y: float, total_us: int) -> bool:
+    """Restyle every text material in one draft JSON copy: font file, size, black stroke (both
+    the rich-text `strokes` the app renders and the legacy border fields), position, full
+    length. A CapCut 9.x draft keeps FOUR live copies (root draft_content.json, draft_info.json,
+    template-2.tmp and Timelines/<id>/draft_info.json + its template-2.tmp) — patch them all
+    or they disagree (verified 2026-10-21 on general_final)."""
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return False
+    texts = (d.get("materials") or {}).get("texts") or []
+    if not texts:
+        return False
+    for t in texts:
+        c = json.loads(t["content"]) if isinstance(t.get("content"), str) else (t.get("content") or {"styles": [{}], "text": text})
+        c["text"] = text
+        for st in c.get("styles") or [{}]:
+            st["range"] = [0, len(text)]
+            st["size"] = size
+            st["font"] = {"path": str(font), "id": ""}
+            st["strokes"] = [{"content": {"render_type": "solid", "solid": {"color": [0.0, 0.0, 0.0]}}, "width": stroke}]
+        t["content"] = json.dumps(c, ensure_ascii=False, separators=(",", ":"))
+        if isinstance(t.get("base_content"), str) and t["base_content"]:
+            t["base_content"] = t["content"]
+        t.update(font_path=str(font), font_name="TikTok Sans", font_title="TikTok Sans", font_size=size,
+                 border_width=stroke, border_color="#000000", border_alpha=1.0, text_color="#FFFFFF")
+    for tr in d.get("tracks") or []:
+        if tr.get("type") == "text":
+            for seg in tr.get("segments") or []:
+                seg["target_timerange"] = {"start": 0, "duration": total_us}
+                if isinstance(seg.get("source_timerange"), dict):
+                    seg["source_timerange"] = {"start": 0, "duration": total_us}
+                seg.setdefault("clip", {})["transform"] = {"x": 0.0, "y": y}
+    path.write_text(json.dumps(d, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    return True
+
+
+def add_capcut_caption(cc: list[str], dest: Path, text: str, total: float) -> str:
+    """Add the styled caption layer to a freshly compiled draft. capcut-cli's add-text makes
+    the text material + track (it cannot set a font), then every JSON copy is restyled. Must
+    run AFTER `lint --fix` (which clamps captions to 7 s) and be followed by one more
+    `sync-timelines --nested` so the nested copy the app reads carries the track."""
+    total_us = int(round(total * 1_000_000))
+    q = run(cc + ["add-text", str(dest), "0", f"{total:.3f}", text, "--font-size", str(CAPCUT_CAPTION["size"]),
+                  "--y", str(CAPCUT_CAPTION["y"]), "--track-name", "caption"], check=False)
+    if q.returncode:
+        return f"caption layer skipped — add-text: {(q.stderr or q.stdout).strip()[-200:]}"
+    run(cc + ["sync-timelines", str(dest), "--nested", "--apply"], check=False)
+    font_dir = dest / "assets" / "fonts"
+    font_dir.mkdir(parents=True, exist_ok=True)
+    font = font_dir / CAPCUT_CAPTION["font"].name
+    shutil.copy2(CAPCUT_CAPTION["font"], font)
+    copies = [dest / "draft_content.json", dest / "draft_info.json", dest / "template-2.tmp"]
+    copies += list(dest.glob("Timelines/*/draft_info.json")) + list(dest.glob("Timelines/*/template-2.tmp"))
+    n = sum(_style_capcut_text(c, text, font, CAPCUT_CAPTION["size"], CAPCUT_CAPTION["stroke"], CAPCUT_CAPTION["y"], total_us)
+            for c in copies if c.exists())
+    return f"caption layer: \"{text}\" in TikTok Sans, white, black stroke, top-centre, full length ({n} draft copies styled)"
+
+
 def cmd_export(args) -> None:
     project, clips = load_project(), scan_clips()
     spec, total = capcut_spec(project, clips)
@@ -3068,7 +3133,7 @@ def cmd_export(args) -> None:
     cc = capcut_bin()
     # capcut-cli refuses to write a managed draft while the editor is open (the app may
     # overwrite it), so quit CapCut first — and only THEN replace an earlier export
-    if capcut_running():
+    if capcut_running() and drafts == CAPCUT_DRAFTS:
         print("CapCut is open — quitting it so the draft can be written…")
         quit_capcut()
         if capcut_running():
@@ -3089,6 +3154,7 @@ def cmd_export(args) -> None:
         q = run(cc + s, check=False)
         if q.returncode:
             notes.append(f"{s[0]}: {(q.stderr or q.stdout).strip()[-300:]}")
+    notes.append(add_capcut_caption(cc, dest, project.get("caption") or CAPCUT_CAPTION["placeholder"], total))
     save_json(dest / ".beatcut.json", {"project": CUR, "spec": str(spec_path.relative_to(ROOT)), "total": total})
     print(f"CapCut project '{name}' written: {dest}")
     print(f"  {len(spec['tracks'][0]['items'])} clips on the video track, the sound on an audio track, {total:.2f}s, 1080x1920 @ {FPS}")

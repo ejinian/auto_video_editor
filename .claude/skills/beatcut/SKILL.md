@@ -92,6 +92,9 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
    (pyobjc `CGWindowListCopyWindowInfo` for CapCut's window id → `screencapture -l`),
    which works even when the Claude app covers CapCut. The seed project `1007` must stay.
    Tell him the draft name; the mp4 render stays the deliverable if he doesn't touch it.
+   The draft arrives with the caption layer already styled (TikTok Sans, white, thin black
+   stroke, top-centre, full length) — the project's `caption` text, or "caption goes here"
+   for him to retype. Set `caption "…"` before exporting when the line is known.
 8. On re-prompt ("swap clips 3 and 8", "get rid of clip 7", "hold that longer"), run the
    matching edit command on the right `-p` project, then `render`. Table in CLAUDE.md.
 
@@ -322,3 +325,22 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   appeared within 6 s). If this repeats, lengthen the home-window wait in
   `open_in_capcut()` before raising the retry count. He asked for CapCut explicitly, so
   the click was in scope.
+- **2026-10-21, adding a styled caption to an app-edited CapCut draft (general_final).**
+  Ernest couldn't get the IG/TikTok caption look in CapCut's font picker (Instagram Sans
+  isn't in its library; system fonts are hidden behind the "Presets ▾" selector) and asked
+  me to do it without losing his edits. What works: back up the draft folder first
+  (`~/Movies/CapCut/backups/`), quit CapCut (auto-saved), then edit the JSON — a text
+  material has `font_path` (absolute TTF path; default is CapCut's SystemFont/en.ttf) and
+  the same path inside `content.styles[].font.path`; the stroke is `content.styles[]
+  .strokes = [{content:{render_type:solid, solid:{color:[0,0,0]}}, width}]` plus the
+  legacy top-level `border_width/border_color/border_alpha`; size is `font_size` + 
+  `styles[].size`; position is the segment's `clip.transform` (y +0.55 = upper third);
+  timing is `target_timerange` in µs. Copy the TTF into the draft's `assets/fonts/` and
+  reference it there. A 9.5 draft has FOUR live copies — root `draft_content.json`,
+  root `draft_info.json`, root `template-2.tmp`, and `Timelines/<id>/draft_info.json` (+
+  its `template-2.tmp`) — capcut-cli writes the root ones, the app reads the nested one:
+  patch all of them identically or they disagree. capcut-cli `add-text`/`text-style`
+  can't set a font. `lint` shows 12 "missing-file" errors on app-saved drafts because of
+  CapCut's `##_draftpath_placeholder_…##` prefix — not real. Recipe used: TikTokSans-700,
+  white, stroke 0.06 black (IG "Classic" look; 0.15 for the TikTok look), size 9,
+  centred, y 0.55, full length. Verified by window capture after reopening.

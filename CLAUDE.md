@@ -255,6 +255,22 @@ project in the store. Before the first export, open CapCut, create one empty pro
 store — never delete it (if it goes, create another). If the store is empty the export
 stops with that message.
 
+**Every export carries the caption layer, styled (2026-10-21, Ernest).** After `lint --fix`
+the export runs `capcut add-text` for the whole length and then restyles the text material in
+every draft JSON copy (`add_capcut_caption` / `_style_capcut_text`): `fonts/TikTokSans-700.ttf`
+copied into the draft's `assets/fonts/` and set as `font_path` AND `content.styles[].font.path`,
+white, a thin black stroke (`styles[].strokes` width 0.06 + the legacy `border_*` fields = the
+IG "Classic" look; 0.15 reads as TikTok's), size 9, centred at `clip.transform.y` 0.55, full
+length. The text is the project's `caption` if set, else "caption goes here" for him to retype
+(`CAPCUT_CAPTION` in beatcut.py). Why JSON: CapCut's font picker can't reach a local TTF and
+capcut-cli's `add-text`/`text-style` can't set fonts. A 9.x draft keeps up to FIVE live copies
+(root `draft_content.json`, `draft_info.json`, `template-2.tmp`, `Timelines/<id>/draft_info.json`
++ its `template-2.tmp`) — the app reads the nested one once it exists, capcut-cli writes the root
+ones; patch all or they disagree. Order matters: `lint --fix` clamps any caption to 7 s, so the
+caption is added after it. Scratch exports (`--drafts <dir>` outside the store) no longer quit
+CapCut. To add the layer to a draft he has ALREADY edited in the app, do NOT re-export (that
+deletes his edits): quit CapCut, back up the folder, apply the same restyle to all copies.
+
 **`--open` lands INSIDE the project (2026-10-07).** CapCut has no deep link for a draft
 (its `capcut://` scheme only targets features; four draft-shaped URLs were ignored), so
 `open_in_capcut()` launches the app, waits for the home window, closes any front dialog
