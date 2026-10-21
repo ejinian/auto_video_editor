@@ -17,7 +17,7 @@ const KIND_HINT: Record<string, string> = {
   reaction: "your character reacts in the corner, silent: short clips of it (nod, shocked, laugh, point, think) switched at the moments that earn a reaction; the original audio stays",
   goofy: "the meme treatment: punch-zooms and a shake at the moments, a boom or a 'bruh' on the reveal, crunchy bass-boosted audio, a big caption; a meme sound from the pool can play under it",
   cinematic: "a trailer: slow motion on the key moment (a riser leads into it), letterbox bars, warm grade and grain, fades; a dramatic sound from the pool replaces the original audio",
-  hype: "the one that parlays the others: cinematic's slow motion, bars and grade with the ORIGINAL audio kept and the song ducked under it, goofy's punch-zooms and booms, pop-in text (4:pop:NO WAY), emoji (8:emoji:😭), snapshots — a polaroid of that frame popping in (3.5:snap) — and the narration lines if it has any",
+  hype: "the one that parlays the others: cinematic's slow motion, bars and grade with the ORIGINAL audio kept and the song ducked under it (its drop lands on the slow moment, the hits sit on its beats), goofy's punch-zooms and booms, pop-in words (13.6:pop:HE'S GIVING THEM OUT — what a viewer would yell at that second), emoji (28:emoji:😭), snapshots — a polaroid of the main moment popping in later (15.6:snap:7.0 = shown at 15.6 s, the frame from 7.0 s) — the hook for the first 4 s, and the narration lines if it has any",
 };
 
 /** The copy of a reformat: the one thing that makes it a different post. Save & render
@@ -37,7 +37,7 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
   const comments = pr.comments ?? [];
   const [avatar, setAvatar] = useState(pr.avatar ?? "");
   const [reactions, setReactions] = useState((pr.reactions ?? []).map((r) => `${r.t}:${r.kind}`).join(", "));
-  const [moments, setMoments] = useState((pr.moments ?? []).map((m) => `${m.t}:${m.fx}`).join(", "));
+  const [moments, setMoments] = useState((pr.moments ?? []).map((m) => `${m.t}:${m.fx}` + (m.text ? `:${m.text}` : m.frame != null ? `:${m.frame}` : "")).join(", "));
   const [styleSound, setStyleSound] = useState(pr.style_sound ?? "");
   const [pool, setPool] = useState<Array<{ path: string; title: string }>>([]);
   const isStyle = kind === "goofy" || kind === "cinematic" || kind === "hype";
@@ -61,7 +61,7 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
     `if there is a reaction one, pick 3-5 moments and what the avatar does at each from its clips (nod, shocked, laugh, point, think — \`avatar --list\` shows which exist): \`reformat -p <name> --reactions "0:nod,2.4:shocked,6:laugh"\`; ` +
     `for a goofy one pick the moments from the frames — a zoom on the funny beat, a boom (and a zoom) on the reveal, a 'bruh' or 'nah' where a reaction fits — \`reformat -p <name> --moments "1.2:zoom,3.0:boom,3.0:zoom,6:bruh" --hook "…"\` (a short all-caps-worthy line), optionally \`--sound sound/<meme>.mp3\` from the pool; ` +
     `for a cinematic one pick the key moment to slow down and a dramatic sound from the pool (sound/*.mp3; the .source.json says what each is): \`reformat -p <name> --moments "4.2:slow" --sound sound/<x>.mp3 --hook "…"\` (a quiet, serious line); ` +
-    `for a hype one combine them: a zoom on the funny beat, a snap (a polaroid of that frame pops in) on the best-looking frame, the slow moment with a boom on the reveal, one or two pop-in words (\`7.3:pop:NO WAY\`) and an emoji (\`8.4:emoji:😭\`) where a reaction fits, a song from the pool ducked under the original audio, 2 narration lines with --lines if a voice-over adds something: \`reformat -p <name> --moments "2:zoom,3.5:snap,5.4:slow,5.4:boom,7.3:pop:NO WAY,8.4:emoji:😭" --sound sound/<x>.mp3 --hook "…"\`; ` +
+    `for a hype one its project json already holds moments read off the footage's motion (the slow + boom where the camera lands after the biggest move, zooms on the hardest cuts, a snap of the main moment shown later as \`t:snap:frame_t\`) — check each against the frames and move any that sits on nothing, then ADD the words: one or two pop-in lines that are what a viewer would yell at exactly that second (\`13.6:pop:HE'S GIVING THEM OUT\`; never a generic NO WAY), an emoji where a reaction fits (\`28.4:emoji:😭\`), a song from the pool (its drop is placed on the slow moment by itself), a hook of under 8 words that is shown for the first 4 s only, 2 narration lines with --lines if a voice-over adds something: \`reformat -p <name> --moments "6.5:slow,6.5:boom,13.5:zoom,13.6:pop:HE'S GIVING THEM OUT,15.6:snap:7.0,28.4:emoji:😭" --sound sound/<x>.mp3 --hook "…"\`; ` +
     `Run /ig-human on the lines first. Add --render to each reformat command so it renders, then write each one's post caption with /ig-caption into its caption file. End with \`REFORMATS: ${siblings.map((p) => p.name).join(" ")}\`.`;
 
   const writeWithClaude = async () => {
@@ -165,8 +165,8 @@ export function ReformatEditor({ d }: { d: ProjectDetail }) {
         {isStyle && (
           <div className="space-y-3">
             <div>
-              <label className="label">Moments <span className="text-muted">(seconds:effect, comma separated — {STYLE_FX[kind].join(", ")}; empty = a guess)</span></label>
-              <input className="input" value={moments} onChange={(e) => setMoments(e.target.value)} placeholder={kind === "goofy" ? "1.2:zoom, 3:boom, 3:zoom, 6:bruh" : kind === "hype" ? "2:zoom, 3.5:snap, 5.4:slow, 5.4:boom, 7.3:pop:NO WAY, 8.4:emoji:😭" : "4.2:slow"} />
+              <label className="label">Moments <span className="text-muted">(seconds:effect, comma separated — {STYLE_FX[kind].join(", ")}; empty = read off the footage's motion)</span></label>
+              <input className="input" value={moments} onChange={(e) => setMoments(e.target.value)} placeholder={kind === "goofy" ? "1.2:zoom, 3:boom, 3:zoom, 6:bruh" : kind === "hype" ? "6.5:slow, 6.5:boom, 13.5:zoom, 13.6:pop:HE'S GIVING THEM OUT, 15.6:snap:7.0, 28.4:emoji:😭" : "4.2:slow"} />
             </div>
             <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
               <div>

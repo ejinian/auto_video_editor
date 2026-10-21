@@ -22,8 +22,9 @@ export interface Project {
   /** A reformat (set by `reformat`): the posted video kept as is, plus one framing. */
   kind?: "reformat";
   reformat?: "hook" | "narrated" | "reply" | "reaction" | "goofy" | "cinematic" | "hype";
-  /** A style's moments (goofy: zoom/boom/bruh/nah/whoosh; cinematic: slow/riser) and its sound from the pool. */
-  moments?: Array<{ t: number; fx: string }>;
+  /** A style's moments (goofy: zoom/boom/bruh/nah/whoosh; cinematic: slow/riser; hype: all of them plus pop/snap/emoji),
+   *  read off the footage's motion when the project was made; pop/emoji carry their text, a snap the time of the frame it shows. */
+  moments?: Array<{ t: number; fx: string; text?: string; frame?: number }>;
   style_sound?: string | null;
   avatar?: string | null;
   reactions?: Array<{ t: number; kind: string }>;

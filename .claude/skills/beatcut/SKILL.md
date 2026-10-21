@@ -241,3 +241,16 @@ verify, and what we've learned. Append to the lessons log at the bottom every da
   worktree's `projects/` is the committed set, so `day3_1` there pointed at Ernest's
   tennis clips, not Christian's gym day: the video page now flags "clips moved or renamed"
   instead of a broken storyboard button.
+- **2026-10-20, the hype style, round two.** Christian on the first hype test: "I liked that
+  edit but it still seemed kind of odd." Read the render frame by frame before guessing: the
+  effects sat at fixed fractions of the length (slow-mo on a static chat window, a polaroid
+  of the frame already on screen, "NO WAY" over a hand picking up a phone), two hooks on
+  screen the whole time, the song's drop a second off the boom, a flat pumping mix, and a
+  ten-second screen recording as test footage. Fixes: moments from the footage's motion
+  (`motion_profile` / `content_moments`), the slow-mo where the camera LANDS after its
+  biggest move, the song's drop placed on that moment and the hits snapped to its beats,
+  one short hook (4 s, as written, in the quiet band of those seconds), no pop words
+  without content, +6 dB. Lessons: a motion peak in handheld footage is the camera, not
+  the subject — slow what it lands on; a frame sheet made with `-ss … -vf fps=…` can sit a
+  second off, so check timing with single `-ss T -frames:v 1` grabs; the Rodeo Drive reel
+  (`reel2_6`) is the comparison against the cinematic `reel2_5` he liked.

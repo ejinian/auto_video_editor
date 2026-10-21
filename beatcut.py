@@ -1421,6 +1421,7 @@ STYLES["hype"] = ("the one that parlays the others (Christian, 2026-10-19): cine
                   "and the song ducked under it, goofy's punch-zooms and booms, pop-in text, emoji, and snapshots — a polaroid of a frame "
                   "that pops in at an angle; the narration lines too, if it has any")
 REFORMATS.update(STYLES)
+HYPE_HOOK_HOLD = 4.0   # seconds the hook line stays on a hype (project `hook_hold`; 0 = the whole video)
 STYLE_FX = {"goofy": ("zoom", "boom", "bruh", "nah", "whoosh"), "cinematic": ("slow", "riser"),
             "hype": ("zoom", "boom", "slow", "pop", "snap", "emoji", "riser", "whoosh", "bruh", "nah")}
 SFX_DIR = SOUND / "_sfx"   # synthesized once (ffmpeg lavfi; 'bruh'/'nah' said by the narration voice)
@@ -1796,8 +1797,9 @@ def sfx(name: str) -> Path:
 
 
 def parse_moments(spec: str | None, kind: str) -> list[dict]:
-    """"1.2:zoom,3:boom,4:pop:NO WAY" → [{t, fx, text?}] for a style; fx must be one of
-    the style's effects; pop / emoji carry their text after a third colon."""
+    """"1.2:zoom,3:boom,4:pop:NO WAY" → [{t, fx, text?, frame?}] for a style; fx must be one
+    of the style's effects; pop / emoji carry their text after a third colon, a snap the
+    time of the frame it shows (else the frame at its own time)."""
     out = []
     for item in [x.strip() for x in (spec or "").split(",") if x.strip()]:
         if ":" not in item:
@@ -1808,21 +1810,140 @@ def parse_moments(spec: str | None, kind: str) -> list[dict]:
             die(f"'{fx}' is not a {kind} effect — have: {', '.join(STYLE_FX.get(kind, ()))}")
         m = {"t": round(float(t), 2), "fx": fx}
         if len(parts) > 2 and parts[2].strip():
-            m["text"] = parts[2].strip()
+            if fx == "snap":   # 9.5:snap:7.7 = shown at 9.5 s, the frame from 7.7 s
+                m["frame"] = round(float(parts[2]), 2)
+            else:
+                m["text"] = parts[2].strip()
         elif fx in ("pop", "emoji"):
             die(f"{fx} needs its text: {t}:{fx}:NO WAY")
         out.append(m)
     return sorted(out, key=lambda m: m["t"])
 
 
-def default_moments(kind: str, dur: float) -> list[dict]:
+def fraction_moments(kind: str, dur: float) -> list[dict]:
+    """The last resort when the footage cannot be read: moments at fixed fractions of the
+    length. (This was the default until 2026-10-20 — effects that reacted to nothing made
+    the first hype test feel odd; `content_moments` is the default now.)"""
     if kind == "goofy":
         return [{"t": round(dur * 0.25, 2), "fx": "zoom"}, {"t": round(dur * 0.55, 2), "fx": "boom"}, {"t": round(dur * 0.55, 2), "fx": "zoom"}]
     if kind == "hype":
-        return [{"t": round(dur * 0.2, 2), "fx": "zoom"}, {"t": round(dur * 0.36, 2), "fx": "snap"},
-                {"t": round(dur * 0.55, 2), "fx": "slow"}, {"t": round(dur * 0.55, 2), "fx": "boom"},
-                {"t": round(dur * 0.74, 2), "fx": "pop", "text": "NO WAY"}, {"t": round(dur * 0.86, 2), "fx": "emoji", "text": "😭"}]
+        return [{"t": round(dur * 0.2, 2), "fx": "zoom"}, {"t": round(dur * 0.55, 2), "fx": "slow"}, {"t": round(dur * 0.55, 2), "fx": "boom"},
+                {"t": round(dur * 0.8, 2), "fx": "snap", "frame": round(dur * 0.55, 2)}]
     return [{"t": round(dur * 0.45, 2), "fx": "slow"}]
+
+
+def motion_profile(src: Path, fps: int = 10) -> tuple[list[float], list[float], list[tuple[float, float]]]:
+    """How much moves in the source, `fps` times a second at thumbnail size (the mean
+    absolute difference between consecutive frames). Returns (times, motion, cuts):
+    `motion` smoothed over ~0.8 s with the cut spikes taken out, `cuts` the hard cuts as
+    (time, how far above its neighbours the spike was)."""
+    import numpy as np
+    OUT.mkdir(parents=True, exist_ok=True)
+    tmp = Path(tempfile.mkdtemp(prefix=".motion-", dir=OUT))
+    log = tmp / "m.txt"
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-vf",
+                    f"fps={fps},scale=96:-1,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file={log}",
+                    "-f", "null", "-"], capture_output=True)
+    times: list[float] = []
+    vals: list[float] = []
+    t = None
+    for line in (log.read_text().splitlines() if log.exists() else []):
+        if line.startswith("frame:"):
+            m = re.search(r"pts_time:([0-9.]+)", line)
+            t = float(m.group(1)) if m else None
+        elif line.startswith("lavfi.signalstats.YAVG=") and t is not None:
+            times.append(t)
+            vals.append(float(line.split("=", 1)[1]))
+    shutil.rmtree(tmp, ignore_errors=True)
+    if len(vals) < 2 * fps:
+        return times, vals, []
+    d = np.array(vals, dtype=np.float32)
+    d[0] = d[1]   # tblend's first frame is the frame itself, not a difference
+    k = 5
+    nb = np.array([np.median(np.concatenate([d[max(0, i - k):i], d[i + 1:i + 1 + k]])) for i in range(len(d))], dtype=np.float32)
+    is_cut = d > np.maximum(3.0 * nb, 2.0 * float(np.median(d)) + 1.0)
+    cuts = [(float(times[i]), float(d[i] / max(float(nb[i]), 1e-3))) for i in range(len(d)) if is_cut[i] and times[i] > 0.2]
+    clean = d.copy()
+    clean[is_cut] = nb[is_cut]
+    win = max(1, int(0.8 * fps))
+    smooth = np.convolve(clean, np.ones(win) / win, mode="same")
+    return times, [float(x) for x in smooth], cuts
+
+
+def content_moments(kind: str, src: Path, dur: float) -> list[dict]:
+    """Moments picked from what HAPPENS in the footage, never from fractions of its length
+    (2026-10-20): the biggest sustained burst of motion is the main moment — slow motion
+    (starting just before the peak) with a boom; the hardest cuts (else the next motion
+    peaks) get the punch-zooms; the snapshot shows the MAIN moment's frame a few seconds
+    AFTER it (a polaroid of the frame on screen read as a glitch). No pop words or emoji
+    here: those must react to what is on screen at that second, so Claude or the editor
+    adds them (`t:pop:WORDS`, `t:emoji:😭`)."""
+    import numpy as np
+    times, motion, cuts = motion_profile(src)
+    if not motion:
+        return fraction_moments(kind, dur)
+    t = np.array(times)
+    m = np.array(motion)
+    gap = max(2.5, dur / 6)
+    usable = (t > 1.0) & (t < dur - 1.6)
+    peaks: list[float] = []
+    for i in np.argsort(-m):
+        if not usable[i]:
+            continue
+        if all(abs(float(t[i]) - q) >= gap for q in peaks):
+            peaks.append(float(t[i]))
+        if len(peaks) >= 6:
+            break
+    if not peaks:
+        return fraction_moments(kind, dur)
+    main = peaks[0]
+    slows = [main] + ([q for q in peaks[1:] if abs(q - main) >= 8][:1] if dur > 20 else [])
+
+    def landing(q: float) -> float:
+        # a motion peak in phone footage is usually the CAMERA whipping to something; the
+        # moment worth slowing is what it lands on — the first time after the peak the
+        # motion has settled (below 65 % of the peak), within 1.5 s
+        i0 = int(np.argmin(np.abs(t - q)))
+        top = float(m[i0])
+        for i in range(i0 + 1, len(t)):
+            if t[i] - q > 1.5:
+                break
+            if m[i] < 0.65 * top:
+                return float(t[i])
+        return q + 0.3
+
+    slow_ts = [round(min(landing(q), dur - 1.6), 2) for q in slows]
+    if kind == "cinematic":
+        return sorted([{"t": q, "fx": "slow"} for q in slow_ts], key=lambda x: x["t"])
+    n_hits = max(1, min(4, round(dur / 9)))
+    far = lambda x: all(abs(x - q) > 2.0 for q in slows + slow_ts) and 1.0 < x < dur - 1.2
+    hits = [c for c, _ in sorted(cuts, key=lambda c: -c[1]) if far(c)][:n_hits]
+    if len(hits) < n_hits:
+        hits += [q for q in peaks[1:] if far(q) and all(abs(q - x) > 1.5 for x in hits)][:n_hits - len(hits)]
+    out: list[dict] = []
+    if kind == "goofy":
+        out.append({"t": round(main, 2), "fx": "boom"})
+        out.append({"t": round(main, 2), "fx": "zoom"})
+        out += [{"t": round(x, 2), "fx": "zoom"} for x in hits]
+        return sorted(out, key=lambda x: x["t"])
+    for q in slow_ts:
+        out.append({"t": q, "fx": "slow"})
+        out.append({"t": q, "fx": "boom"})
+    out += [{"t": round(x, 2), "fx": "zoom"} for x in hits]
+    main_t = slow_ts[0]
+    later = [x for x in sorted(hits + peaks[1:]) if x >= main_t + 3.0 and x < dur - 2.0]
+    snap_t = later[0] if later else min(dur - 2.0, main_t + 4.5)
+    if snap_t > main_t + 2.0:
+        out.append({"t": round(snap_t, 2), "fx": "snap", "frame": round(main_t + 0.5, 2)})   # the moment at its clearest, shown later
+    return sorted(out, key=lambda x: x["t"])
+
+
+def default_moments(kind: str, dur: float, src: Path | None = None) -> list[dict]:
+    """A style's moments when the project names none: read off the footage when the
+    source is given, else at fixed fractions."""
+    if src is not None and src.exists():
+        return content_moments(kind, src, dur)
+    return fraction_moments(kind, dur)
 
 
 def pop_png(text: str, w: int, h: int, path: Path) -> tuple[int, int]:
@@ -1900,7 +2021,7 @@ def render_hype(project: dict, args) -> None:
     work = od / f".reformat_{name}"
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
-    moments = project.get("moments") or default_moments("hype", dur)
+    moments = project.get("moments") or default_moments("hype", dur, src)
     slow_factor, slow_len = 2.2, 1.0
     cuts, segs = 0.0, []
     for t in sorted(m["t"] for m in moments if m["fx"] == "slow"):
@@ -1914,6 +2035,19 @@ def render_hype(project: dict, args) -> None:
 
     def remap(t: float) -> float:
         return sum((min(b, max(a, t)) - a) * f for a, b, f in segs if a < t)
+
+    # the song starts where its DROP lands on the main moment (the first slow, else the
+    # first boom), and every hit is snapped to the nearest beat of it (2026-10-20)
+    snd = style_sound(project)
+    song_start, song_beats, song_why = 0.0, [], ""
+    if snd:
+        anchors = [remap(m["t"]) for m in moments if m["fx"] == "slow"] or [remap(m["t"]) for m in moments if m["fx"] == "boom"]
+        song_start, song_beats, song_why = song_offset(snd, anchors[0] if anchors else 0.0, total)
+    beat_grid = sorted(b - song_start for b in song_beats if b >= song_start)
+
+    def on_beat(t_out: float) -> float:
+        near = min(beat_grid, key=lambda b: abs(b - t_out), default=None)
+        return round(near, 3) if near is not None and abs(near - t_out) <= 0.3 else t_out
 
     has_src_audio = has_audio(src)
     cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)]
@@ -1930,8 +2064,8 @@ def render_hype(project: dict, args) -> None:
     for i, (a, b, f) in enumerate(segs):
         filters.append(f"[p{i}]trim=start={a:.3f}:end={b:.3f},setpts=(PTS-STARTPTS)*{f}[s{i}]")
     filters.append("".join(f"[s{i}]" for i in range(len(segs))) + f"concat=n={len(segs)}:v=1:a=0[vc]")
-    zooms = [remap(m["t"]) for m in moments if m["fx"] == "zoom"]
-    booms = [remap(m["t"]) for m in moments if m["fx"] == "boom"]
+    zooms = [on_beat(remap(m["t"])) for m in moments if m["fx"] == "zoom"]
+    booms = [on_beat(remap(m["t"])) for m in moments if m["fx"] == "boom"]
     z = "1" + "".join(f"+0.2*between(t,{t:.3f},{t + 0.5:.3f})" for t in zooms)
     shake = "".join(f"+7*sin(t*140)*between(t,{t:.3f},{t + 0.3:.3f})" for t in booms)
     bar = int(h * 0.06)
@@ -1956,25 +2090,39 @@ def render_hype(project: dict, args) -> None:
 
     if project.get("hook"):
         cap = work / "hook.png"
-        # below the top bar and any text the source carries up there: the quiet band of the middle third
-        caption_png(project["hook"].upper(), w, h, cap, y_frac=quiet_y(src, dur, 0.12, [0.27, 0.33, 0.39, 0.45, 0.51]), size_frac=0.042)
-        cmd += ["-i", str(cap)]
-        filters.append(f"[{last}][{n_in}:v]overlay=0:0:format=auto[hk]")
+        # ONE hook, as written (not shouted), for the first seconds only — a second line
+        # competing with the source's own text for the whole video was the oddest part of
+        # the first test (2026-10-20); below any text the source carries up top: the quiet
+        # band of the middle third
+        hold = float(project.get("hook_hold") if project.get("hook_hold") is not None else HYPE_HOOK_HOLD)
+        # the quiet band is measured on the frames the hook is actually ON (its first seconds,
+        # not the whole video — it landed on a face that way), from just under the top bar down
+        span = hold if 0 < hold < total - 0.5 else dur
+        caption_png(project["hook"], w, h, cap, y_frac=quiet_y(src, span, 0.1, [0.1, 0.16, 0.22, 0.28, 0.34, 0.4, 0.46, 0.52]), size_frac=0.04)
+        if hold <= 0 or hold >= total - 0.5:
+            cmd += ["-i", str(cap)]
+            filters.append(f"[{last}][{n_in}:v]overlay=0:0:format=auto[hk]")
+        else:
+            cmd += ["-loop", "1", "-t", f"{hold + 0.3:.3f}", "-i", str(cap)]
+            filters.append(f"[{n_in}:v]format=rgba,fade=t=in:st=0.2:d=0.15:alpha=1,fade=t=out:st={hold - 0.25:.3f}:d=0.25:alpha=1[hkp]")
+            filters.append(f"[{last}][hkp]overlay=0:0:format=auto:eof_action=pass:enable='between(t,0.2,{hold:.3f})'[hk]")
         last = "hk"
         n_in += 1
     for i, m in enumerate(moments):
-        t_out = remap(m["t"])
+        t_out = on_beat(remap(m["t"]))
         if m["fx"] == "pop":
+            if not m.get("text"):
+                continue   # a pop with nothing to say is noise, not a default
             png = work / f"pop{i}.png"
-            pw, ph = pop_png(m.get("text") or "NO WAY", w, h, png)
+            pw, ph = pop_png(m["text"], w, h, png)
             pop_in(png, t_out, 1.2, "(W-w)/2", f"H*0.44-h/2")
         elif m["fx"] == "emoji":
             png = work / f"emoji{i}.png"
-            if emoji_png(m.get("text") or "😭", png, int(h * 0.16)):
+            if m.get("text") and emoji_png(m["text"], png, int(h * 0.16)):
                 pop_in(png, t_out, 1.1, "W*0.68-w/2", "H*0.3-h/2", rise=0.1)
         elif m["fx"] == "snap":
             png = work / f"snap{i}.png"
-            polaroid_png(src, m["t"], w, h, png)
+            polaroid_png(src, float(m.get("frame", m["t"])), w, h, png)
             pop_in(png, t_out, 1.4, "(W-w)/2", "(H-h)/2", rise=0.18)
     # narration lines (the third rendition's trick), if the project has any: said by the
     # narration voice at even spacing, each shown while it is said
@@ -2006,10 +2154,9 @@ def render_hype(project: dict, args) -> None:
         filters.append(f"[q{i}]atrim=start={a:.3f}:end={b:.3f},asetpts=PTS-STARTPTS{tempo}[r{i}]")
     filters.append("".join(f"[r{i}]" for i in range(len(segs))) + f"concat=n={len(segs)}:v=0:a=1,bass=g=4,asplit=2[oa][oa_sc]")
     mix_in = ["[oa]"]
-    snd = style_sound(project)
     if snd:
         cmd += ["-i", str(snd)]
-        filters.append(f"[{n_in}:a]atrim=0:{total:.3f},asetpts=PTS-STARTPTS,volume=0.55,afade=t=in:d=0.4,afade=t=out:st={max(0.0, total - 0.8):.3f}:d=0.8[song]")
+        filters.append(f"[{n_in}:a]atrim={song_start:.3f}:{song_start + total:.3f},asetpts=PTS-STARTPTS,volume=0.55,afade=t=in:d=0.4,afade=t=out:st={max(0.0, total - 0.8):.3f}:d=0.8[song]")
         filters.append("[song][oa_sc]sidechaincompress=threshold=0.03:ratio=8:attack=15:release=500:makeup=1[sd]")
         mix_in.append("[sd]")
         n_in += 1
@@ -2027,14 +2174,16 @@ def render_hype(project: dict, args) -> None:
             which = "whoosh" if fx in ("snap", "pop") else fx
             cmd += ["-i", str(sfx(which))]
             vol = 1.5 if which == "boom" else 0.9
-            t0 = remap(m["t"])
+            t0 = on_beat(remap(m["t"]))
             filters.append(f"[{n_in}:a]volume={vol},adelay={int(t0 * 1000)}|{int(t0 * 1000)}[x{n_in}]")
             mix_in.append(f"[x{n_in}]")
             n_in += 1
     for lm in line_mixes:
         filters.append(lm)
         mix_in.append(lm.split("[")[-1].rstrip("]").join(["[", "]"]))
-    filters.append("".join(mix_in) + f"amix=inputs={len(mix_in)}:duration=first:normalize=0,alimiter=limit=0.95[ao]")
+    # the mix came out ~8 dB under the cinematic cut (the duck pulls the song down, the original is
+    # phone audio): +6 dB into the limiter brings it to posting level without crushing the hits
+    filters.append("".join(mix_in) + f"amix=inputs={len(mix_in)}:duration=first:normalize=0,volume=6dB,alimiter=limit=0.95:attack=5:release=80[ao]")
 
     cmd += ["-filter_complex", ";".join(filters), "-map", "[vo]", "-map", "[ao]", "-r", str(FPS), "-t", f"{total:.3f}"]
     out_path = od / f"{name}.mp4"
@@ -2049,6 +2198,8 @@ def render_hype(project: dict, args) -> None:
         if p.returncode:
             die(f"ffmpeg failed:\n{p.stderr[-3000:]}")
     shutil.rmtree(work, ignore_errors=True)
+    if snd:
+        print(f"  song {snd.stem} from {song_start:.1f}s — {song_why}" + (f"; hits snapped to its beats" if beat_grid else ""))
     keep_render(out_path, name, args.draft, f"hype style · {total:.1f}s · {w}x{h}")
 
 
@@ -2058,10 +2209,30 @@ def style_sound(project: dict) -> Path | None:
     if project.get("style_sound"):
         p = ROOT / project["style_sound"]
         return p if p.exists() else None
-    if project["reformat"] == "cinematic":
+    if project["reformat"] in ("cinematic", "hype"):
         for cand in pool_sounds({project.get("sound") or ""}):
             return ROOT / cand["sound"]
     return None
+
+
+def song_offset(snd: Path, at: float, total: float) -> tuple[float, list[float], str]:
+    """Where to start a pool song under a `total`-second video so its DROP lands at `at`
+    seconds of it: the first drop that can (the song must still run to the end), else the
+    suggested start, as late as the length allows. Returns (start, the song's beat times, why)."""
+    bj = snd.with_suffix(".beats.json")
+    if not bj.exists():
+        return 0.0, [], "no beat file for it"
+    b = load_json(bj)
+    sdur = float(b.get("duration") or 0)
+    beats = [float(x) for x in b.get("beats", [])]
+    for d in b.get("drops", []):
+        off = float(d["time"]) - at
+        if off >= 0 and (not sdur or off + total <= sdur + 0.3):
+            return round(off, 3), beats, f"its drop ({d['time']:.1f}s in) lands on the main moment at {at:.1f}s"
+    off = float(b.get("suggested_start") or 0)
+    if sdur:
+        off = min(off, max(0.0, sdur - total))
+    return round(off, 3), beats, "no drop of it can land on the main moment — the suggested start"
 
 
 def render_style(project: dict, args) -> None:
@@ -2075,7 +2246,7 @@ def render_style(project: dict, args) -> None:
     work = od / f".reformat_{name}"
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
-    moments = project.get("moments") or default_moments(kind, dur)
+    moments = project.get("moments") or default_moments(kind, dur, src)
     cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)]
     n_in = 1
     has_src_audio = has_audio(src)
@@ -2205,7 +2376,7 @@ def reformat_summary(project: dict) -> str:
         return f'{len(lines)} line{"s" if len(lines) != 1 else ""} ({project.get("voice") or default_voice()}): ' + (" | ".join(lines) if lines else "(none yet)")
     if kind in STYLES:
         ms = project.get("moments") or []
-        return (f'moments: ' + (", ".join(f"{m['t']}:{m['fx']}" + (f":{m['text']}" if m.get("text") else "") for m in ms) if ms else "(default)") +
+        return (f'moments: ' + (", ".join(f"{m['t']}:{m['fx']}" + (f":{m['text']}" if m.get("text") else f":{m['frame']}" if m.get("frame") is not None else "") for m in ms) if ms else "(default)") +
                 (f' · sound {Path(project["style_sound"]).stem}' if project.get("style_sound") else "") +
                 (f' · hook: {project["hook"]}' if project.get("hook") else ""))
     if kind == "reaction":
@@ -2520,6 +2691,8 @@ def cmd_reformat(args) -> None:
             "moments": [], "style_sound": None,
         }
         apply_copy(project)
+        if kind in STYLES and not project["moments"]:
+            project["moments"] = default_moments(kind, dur, src)
         save_project(project)
         # the feed's poster and the page's storyboard: the video's own frames
         shutil.copy2(sheet, od_board := out_dir(project) / f"_{name}_board.jpg")
