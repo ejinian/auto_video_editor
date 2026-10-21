@@ -93,7 +93,7 @@ export function RemixUpload({ videos }: { videos: ProjectSummary[] }) {
               <span className="text-muted">plus a style:</span>
               <label className={`tag !cursor-pointer ${styles.includes("goofy") ? "ok" : ""}`}><input type="checkbox" className="mr-1" checked={styles.includes("goofy")} onChange={() => toggleStyle("goofy")} />Goofy <span className="text-muted ml-1">punch-zooms, a boom on the reveal, crunchy audio</span></label>
               <label className={`tag !cursor-pointer ${styles.includes("cinematic") ? "ok" : ""}`}><input type="checkbox" className="mr-1" checked={styles.includes("cinematic")} onChange={() => toggleStyle("cinematic")} />Cinematic <span className="text-muted ml-1">slow-mo, letterbox, grade, a dramatic sound</span></label>
-              <label className={`tag !cursor-pointer ${styles.includes("hype") ? "ok" : ""}`}><input type="checkbox" className="mr-1" checked={styles.includes("hype")} onChange={() => toggleStyle("hype")} />Hype <span className="text-muted ml-1">all of it: slow-mo + zooms + pop text, emoji, snapshots; original audio kept, song ducked</span></label>
+              <label className={`tag !cursor-pointer ${styles.includes("hype") ? "ok" : ""}`}><input type="checkbox" className="mr-1" checked={styles.includes("hype")} onChange={() => toggleStyle("hype")} />Hype <span className="text-muted ml-1">all of it: slow-mo + zooms on the footage's own moments, pop text, emoji, snapshots; original audio kept, the song's drop on the slow moment</span></label>
             </div>
           )}
         </div>

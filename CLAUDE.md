@@ -209,9 +209,34 @@ bars (6 %) and grade; a riser into each slow moment; pop-in text (`t:pop:NO WAY`
 `pop_png`: big tilted caps, scale-in 0.14 s with a tiny overshoot), emoji (`t:emoji:😭`,
 `emoji_png`: Apple Color Emoji renders only at 160 px, scaled), snapshots (`t:snap`,
 `polaroid_png`: the source frame at t as a tilted polaroid with a shadow, pops in centred,
-a whoosh); narration `lines` if any (shown at 66 %); the hook caption in the quiet band of
-the middle third (not the top: the source's own text lives there). Moments carry an
-optional third field for pop/emoji text. Hype is the Remix page's default style.
+a whoosh); narration `lines` if any (shown at 66 %). Moments carry an optional third
+field: the words of a pop/emoji, or for a snap the TIME of the frame it shows
+(`15.6:snap:7.0`). Hype is the Remix page's default style.
+**Moments come from the footage, never from fractions (2026-10-20, after Christian watched
+the first hype test: "I liked that edit but it still seemed kind of odd").** What was odd:
+the defaults sat at 20/36/55/74/86 % of the length, so the slow-mo hit a static screen, the
+polaroid showed the frame already on screen, "NO WAY" popped over nothing, two hooks (the
+source's own and ours, in the same loud caps) fought all video long, the song's drop
+missed the boom, and the mix pumped. Now: `content_moments` (default for every style when
+the project names none; `reformat` stores them in the project so the editor and the Claude
+ask start from them) reads `motion_profile` — the mean frame difference 10×/s at 96 px
+(`tblend=difference,signalstats`), hard cuts = a spike 3× its neighbours, the rest smoothed
+over 0.8 s. The biggest sustained motion is the main moment, but a peak in phone footage is
+the CAMERA whipping, so the slow-mo starts where it LANDS (motion back under 65 % of the
+peak, within 1.5 s) with the boom; zooms go on the hardest cuts, else the next peaks (one
+per ~9 s, max 4); the snap shows the main moment's frame 3+ s later; a second slow only
+over 20 s. No pop words or emoji by default — they must be what a viewer would yell at
+that second (`13.6:pop:HE'S GIVING THEM OUT`), so Claude or the editor adds them; a pop
+without text is skipped. The song starts where its first DROP that fits lands on the main
+moment (`song_offset`, from the pool's `.beats.json`; the suggested start when none fits)
+and every hit is snapped to the nearest beat within 0.3 s (`on_beat`); the render prints
+the alignment. The hook is ONE line, as written (not upper-cased), 4 % high, on screen
+for the first `HYPE_HOOK_HOLD` = 4 s only (project `hook_hold`; 0 = the whole video),
+faded in and out, in the quiet band measured on THOSE seconds (quiet_y over the hook's
+own span, candidates from 10 % down — measured on the whole video it landed on a face).
+The mix gets +6 dB into the limiter (it sat 8 dB under the cinematic cut). First real
+one: `reel2_6` (the N3on Rodeo Drive reel, the song's second drop at 50 s on the close-up
+at 6.5 s, 43.7 s in), for Christian to compare with the cinematic `reel2_5`.
 In the app the Remix page's default is **Reformat** (Re-cut ×4 is the other option,
 for raw footage); the job lands on `/video/F_1?ask=reformat`, which fires a Claude ask
 (`ReformatEditor`): read the frame sheet, write the hook, the narration and the comment
